@@ -1,0 +1,9 @@
+.idea/
+build/
+cmake-build-debug/
+miniob/
+observer.log*
+.gitmodules
+/deps/googletest/
+/deps/jsoncpp/
+/deps/libevent/
