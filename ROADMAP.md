@@ -1,6 +1,6 @@
 ## Required Feature
 * BufferPool Optimization [planned]
-* Drop Table [ongoing] by @zzl
+* Drop Table [done] by @zzl
 * Update Record [ongoing] by @zzl
 * Date Type Support [planned]
 * Query Meta Check [planned]
