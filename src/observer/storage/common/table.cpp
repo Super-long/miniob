@@ -519,8 +519,62 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   return rc;
 }
 
+// TODO: transaction?
+class RecordUpdater {
+public:
+    RecordUpdater(Table &table, Trx *trx, const char *attribute_name, const Value *value)
+            : table_(table), trx_(trx), attribute_name_(attribute_name), value_(value) {
+    }
+
+    RC update_record(Record *record) {
+        auto field = table_.table_meta_.field(attribute_name_);
+        memcpy(record->data + field->offset(), value_->data, field->len());
+        auto rc = table_.record_handler_->update_record(record);
+        if (rc != SUCCESS) {
+            LOG_ERROR("Failed to update record");
+        }
+        updated_count_++;
+        return rc;
+    }
+
+    int updated_count() const {
+        return updated_count_;
+    }
+
+private:
+    Table & table_;
+    Trx *trx_;
+    int updated_count_ = 0;
+    const char *attribute_name_;
+    const Value *value_;
+};
+
+static RC record_reader_update_adapter(Record *record, void *context) {
+    RecordUpdater &record_updater = *(RecordUpdater *)context;
+    return record_updater.update_record(record);
+}
+
+// TODO: meta check
 RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value, int condition_num, const Condition conditions[], int *updated_count) {
-  return RC::GENERIC_ERROR;
+    if (nullptr == attribute_name || nullptr == value ) {
+        LOG_ERROR("Invalid argument. attr=%s, value=%s", attribute_name, value);
+        return RC::INVALID_ARGUMENT;
+    }
+
+    auto filter = new CompositeConditionFilter();
+    RC rc = filter->init(*this, conditions, condition_num);
+    if (rc != SUCCESS) {
+        LOG_ERROR("Failed to init condition filters");
+        return rc;
+    }
+    auto updater = new RecordUpdater(*this, trx, attribute_name, value);
+    rc = scan_record(trx, filter, INT_MAX, updater, record_reader_update_adapter);
+    if (rc != SUCCESS) {
+        LOG_ERROR("Failed to scan records");
+        return rc;
+    }
+    *updated_count = updater->updated_count();
+    return RC::SUCCESS;
 }
 
 class RecordDeleter {
