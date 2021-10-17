@@ -8,4 +8,8 @@
 2. 一个summary，总结一周做的事情
 
 ## 类图
-miniob.drawio,
+miniob.drawio，登陆https://www.diagrams.net/打开，基本的，简单的一个脉络，未完成
+
+
+## 代码中目前存在的一些疑问
+1. insert_record中insert_operation并没有修改record中的trx_id，那个注释需要取消吗
