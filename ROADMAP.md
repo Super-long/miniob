@@ -3,9 +3,9 @@
 * Drop Table [done] by @zzl
 * Update Record [ongoing] by @zzl
 * Date Type Support [ongoing] by @zzl
-* Query Meta Check [planned]
+* Query Meta Check [ongoing] by @zzl
 * Multi-Tables Query [planned]
-* Aggregation [planned]
+* Aggregation [ongoing] by @zzl
 
 ## Optional Feature
 * Inner Join of Multi-Tables [planned]
