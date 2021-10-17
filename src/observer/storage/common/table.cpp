@@ -266,9 +266,11 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
     if (field->type() != value.type) {
-      LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
-        field->name(), field->type(), value.type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        if (!(value.type == CHARS && field->type() == DATES)) {
+            LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
+                      field->name(), field->type(), value.type);
+            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
     }
   }
 
