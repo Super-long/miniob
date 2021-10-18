@@ -4,7 +4,7 @@
 * Update Record [ongoing] by @zzl
 * Date Type Support [ongoing] by @zzl
 * Query Meta Check [ongoing] by @zzl
-* Multi-Tables Query [planned]
+* Multi-Tables Query [ongoing] @zzl
 * Aggregation [ongoing] by @zzl
 
 ## Optional Feature
