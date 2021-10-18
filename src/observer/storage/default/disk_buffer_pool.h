@@ -23,10 +23,13 @@ See the Mulan PSL v2 for more details. */
 #include <time.h>
 
 #include <vector>
+#include <unordered_map>
+#include <list>
 
 #include "rc.h"
 
-typedef int PageNum;
+using PageNum = int;
+using FrameNum = int;
 
 //
 #define BP_INVALID_PAGE_NUM (-1)
@@ -78,8 +81,7 @@ public:
 
 class BPManager {
 public:
-  BPManager(int size = BP_BUFFER_SIZE) {
-    this->size = size;
+  explicit BPManager(int size = BP_BUFFER_SIZE) : capacity(size) {
     frame = new Frame[size];
     allocated = new bool[size];
     for (int i = 0; i < size; i++) {
@@ -91,17 +93,88 @@ public:
   ~BPManager() {
     delete[] frame;
     delete[] allocated;
-    size = 0;
     frame = nullptr;
     allocated = nullptr;
   }
 
+  // 最恶心的地方在于分配的时候只要一个Frame，但是Get的时候却需要PageNum
+  // 这个PageNum是在alloc以后分配的，意味着没法用pagenum索引数据
   Frame *alloc() {
-    return nullptr; // TODO for test
+    // 找到了一个没人用的frame
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i]) {
+        allocated[i] = true;
+        return frame + i;
+      }
+    }
+
+    int min = 0;
+    unsigned long mintime = 0;
+    bool flag = false;
+    // 当allocated是错误的时候，我们查找一个最长时间没有访问的Frame
+    for (int i = 0; i < capacity; i++) {
+      if (frame[i].pin_count != 0) {
+        continue;
+      }
+      if (!flag) {
+        flag = true;
+        min = i;
+        mintime = frame[i].acc_time;
+      }
+      if (frame[i].acc_time < mintime) {
+        min = i;
+        mintime = frame[i].acc_time;
+      }
+    }
+    if (!flag) {
+      LOG_ERROR("All pages have been used and pinned.");
+      return nullptr;
+    }
+
+    return frame + min;
   }
 
   Frame *get(int file_desc, PageNum page_num) {
-    return nullptr; // TODO for test
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i])
+        continue;
+      if (frame[i].file_desc != file_desc)
+        continue;
+
+      // This page has been loaded.
+      if (frame[i].page.page_num == page_num) {
+        return &frame[i];
+      }
+    }
+    return nullptr;
+  }
+
+  void free(int file_desc, PageNum page_num) {
+    for (int i = 0; i < capacity; i++) {
+      if (frame[i].file_desc != file_desc)
+        continue;
+      if (frame[i].page.page_num == page_num) {
+        allocated[i] = false;
+        return;
+      }
+    }
+    return;
+  }
+
+  std::vector<Frame*> free_file(int file_desc) {
+    std::vector<Frame*> frame_array;
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i])
+        continue;
+      if (frame[i].file_desc != file_desc)
+        continue;
+
+      if (frame[i].dirty) {
+        frame_array.push_back(frame[i]);
+      }
+      allocated[i] = false;
+    }
+    return frame_array;
   }
 
   Frame *getFrame() { return frame; }
@@ -109,9 +182,9 @@ public:
   bool *getAllocated() { return allocated; }
 
 public:
-  int size;
-  Frame * frame = nullptr;
   bool *allocated = nullptr;
+  Frame * frame = nullptr;
+  const int capacity;
 };
 
 class DiskBufferPool {
