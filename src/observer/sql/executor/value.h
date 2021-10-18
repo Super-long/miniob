@@ -44,6 +44,11 @@ public:
     return value_ - int_other.value_;
   }
 
+  void sum(const TupleValue &other) {
+      auto int_other = (const IntValue &)other;
+      value_ += int_other.value_;
+  }
+
 private:
   int value_;
 };
@@ -68,6 +73,12 @@ public:
     }
     return 0;
   }
+
+    void sum(const TupleValue &other) {
+        auto float_other = (const FloatValue &)other;
+        value_ += float_other.value_;
+    }
+
 private:
   float value_;
 };
