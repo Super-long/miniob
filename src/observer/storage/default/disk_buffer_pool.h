@@ -23,17 +23,20 @@ See the Mulan PSL v2 for more details. */
 #include <time.h>
 
 #include <vector>
+#include <unordered_map>
+#include <list>
 
 #include "rc.h"
 
-typedef int PageNum;
+using PageNum = int;
+using FrameNum = int;
 
 //
 #define BP_INVALID_PAGE_NUM (-1)
 #define BP_PAGE_SIZE (1 << 12)
 #define BP_PAGE_DATA_SIZE (BP_PAGE_SIZE - sizeof(PageNum))
 #define BP_FILE_SUB_HDR_SIZE (sizeof(BPFileSubHeader))
-#define BP_BUFFER_SIZE 50
+#define BP_BUFFER_SIZE 1024   // buffer_size放大一点，目前bp_manger的是默认构造的，所以这个是硬编码的
 #define MAX_OPEN_FILE 1024
 
 typedef struct {
@@ -43,8 +46,8 @@ typedef struct {
 // sizeof(Page) should be equal to BP_PAGE_SIZE
 
 typedef struct {
-  PageNum page_count;
-  int allocated_pages;
+  PageNum page_count;   // 目前文件共有多少页
+  int allocated_pages;  // 目前disk_buffer_pool中此文件已经分配的页
 } BPFileSubHeader;
 
 typedef struct {
@@ -78,8 +81,7 @@ public:
 
 class BPManager {
 public:
-  BPManager(int size = BP_BUFFER_SIZE) {
-    this->size = size;
+  explicit BPManager(int size = BP_BUFFER_SIZE) : capacity(size) {
     frame = new Frame[size];
     allocated = new bool[size];
     for (int i = 0; i < size; i++) {
@@ -91,17 +93,93 @@ public:
   ~BPManager() {
     delete[] frame;
     delete[] allocated;
-    size = 0;
     frame = nullptr;
     allocated = nullptr;
   }
 
+  // 最恶心的地方在于分配的时候只要一个Frame，但是Get的时候却需要PageNum
+  // 这个PageNum是在alloc以后分配的，意味着没法用pagenum索引数据
   Frame *alloc() {
-    return nullptr; // TODO for test
+    // 找到了一个没人用的frame
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i]) {
+        allocated[i] = true;
+        return frame + i;
+      }
+    }
+
+    int min = 0;
+    unsigned long mintime = 0;
+    bool flag = false;
+    // 当allocated是错误的时候，我们查找一个最长时间没有访问的Frame
+    for (int i = 0; i < capacity; i++) {
+      if (frame[i].pin_count != 0) {
+        continue;
+      }
+      if (!flag) {
+        flag = true;
+        min = i;
+        mintime = frame[i].acc_time;
+      }
+      if (frame[i].acc_time < mintime) {
+        min = i;
+        mintime = frame[i].acc_time;
+      }
+    }
+    if (!flag) {
+      return nullptr;
+    }
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC, &tp);
+    frame[min].acc_time = tp.tv_sec * 1000 * 1000 * 1000UL + tp.tv_nsec;
+    return frame + min;
   }
 
   Frame *get(int file_desc, PageNum page_num) {
-    return nullptr; // TODO for test
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i])
+        continue;
+      if (frame[i].file_desc != file_desc)
+        continue;
+
+      // This page has been loaded.
+      if (frame[i].page.page_num == page_num) {
+        struct timespec tp;
+        clock_gettime(CLOCK_MONOTONIC, &tp);
+        frame[i].acc_time = tp.tv_sec * 1000 * 1000 * 1000UL + tp.tv_nsec;
+        return &frame[i];
+      }
+    }
+    return nullptr;
+  }
+
+  void free(int file_desc, PageNum page_num) {
+    for (int i = 0; i < capacity; i++) {
+      if (frame[i].file_desc != file_desc)
+        continue;
+      if (frame[i].page.page_num == page_num) {
+        allocated[i] = false;
+        return;
+      }
+    }
+    return;
+  }
+
+  // @notes: 调用结束之后应该去判断是否要刷新磁盘
+  std::vector<Frame*> free_file(int file_desc) {
+    std::vector<Frame*> frame_array;
+    for (int i = 0; i < capacity; i++) {
+      if (!allocated[i])
+        continue;
+      if (frame[i].file_desc != file_desc)
+        continue;
+
+      if (frame[i].dirty) {
+        frame_array.push_back(frame + i);
+      }
+      allocated[i] = false;
+    }
+    return frame_array;
   }
 
   Frame *getFrame() { return frame; }
@@ -109,13 +187,14 @@ public:
   bool *getAllocated() { return allocated; }
 
 public:
-  int size;
-  Frame * frame = nullptr;
   bool *allocated = nullptr;
+  Frame * frame = nullptr;
+  const int capacity;
 };
 
 class DiskBufferPool {
 public:
+  DiskBufferPool(int size = BP_BUFFER_SIZE) : bp_manager_(size) {}
   /**
   * 创建一个名称为指定文件名的分页文件
   */
