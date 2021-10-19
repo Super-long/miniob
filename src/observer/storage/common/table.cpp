@@ -281,7 +281,24 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    memcpy(record + field->offset(), value.data, field->len());
+    if (field->type() == DATES) {
+        char *data = static_cast<char *>(value.data);
+        std::string new_value;
+        char *token = strtok(data, "-");
+        while (token != nullptr) {
+            if (strlen(token) == 1) {
+                new_value += "0";
+            }
+            new_value += token;
+            token = strtok(nullptr, "-");
+            if (token != nullptr) {
+                new_value += "-";
+            }
+        }
+        memcpy(record + field->offset(), new_value.c_str(), field->len());
+    } else {
+        memcpy(record + field->offset(), value.data, field->len());
+    }
   }
 
   record_out = record;
