@@ -3,15 +3,15 @@
 * Drop Table [done] by @zzl
 * Update Record [done] by @zzl
 * Date Type Support [done] by @zzl
-* Query Meta Check [ongoing] by @zzl
-* Multi-Tables Query [ongoing] @zzl
-* Aggregation [ongoing] by @zzl
+* Query Meta Check [done?] by @zzl
+* Multi-Tables Query [done] @zzl
+* Aggregation [done] by @zzl (some left for @hzn)
 
 ## Optional Feature
-* Inner Join of Multi-Tables [planned]
+* Inner Join of Multi-Tables [ongoing]
 * Atomic & Batch Insert of Data [planned]
 * Unique Index [planned]
-* NULL Type Support [planned]
+* NULL Type Support [ongoing]
 * Subquery [planned]
 * Multi-Columns Index [planned]
 * Long Text Support [planned] by @zzl
