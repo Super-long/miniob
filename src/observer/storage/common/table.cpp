@@ -285,15 +285,64 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
         char *data = static_cast<char *>(value.data);
         std::string new_value;
         char *token = strtok(data, "-");
+        std::vector<std::string> vec;
         while (token != nullptr) {
             if (strlen(token) == 1) {
                 new_value += "0";
             }
+            vec.emplace_back(token);
             new_value += token;
             token = strtok(nullptr, "-");
             if (token != nullptr) {
                 new_value += "-";
             }
+        }
+        // check validation
+        int year = atoi(vec[0].c_str());
+        if (year <= 0) {
+            return INVALID_ARGUMENT;
+        }
+        int month = atoi(vec[1].c_str());
+        if (month <= 0 || month >= 13) {
+            return INVALID_ARGUMENT;
+        }
+        int day = atoi(vec[2].c_str());
+        switch (month) {
+            case 1:
+            case 3:
+            case 5:
+            case 7:
+            case 8:
+            case 10:
+            case 12: {
+                if (day <= 0 || day >= 32) {
+                    return INVALID_ARGUMENT;
+                }
+                break;
+            }
+            case 4:
+            case 6:
+            case 9:
+            case 11: {
+                if (day <= 0 || day >= 31) {
+                    return INVALID_ARGUMENT;
+                }
+                break;
+            }
+            case 2: {
+                if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
+                    if (day <= 0 || day >= 30) {
+                        return INVALID_ARGUMENT;
+                    }
+                } else {
+                    if (day <= 0 || day >= 29) {
+                        return INVALID_ARGUMENT;
+                    }
+                }
+                break;
+            }
+            default:
+                return INVALID_ARGUMENT;
         }
         memcpy(record + field->offset(), new_value.c_str(), field->len());
     } else {
