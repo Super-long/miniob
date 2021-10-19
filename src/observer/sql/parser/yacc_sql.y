@@ -409,18 +409,37 @@ select_attr:
 			ainfo.agg_attr = attr;
 			selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
 	}
-	// TODO: (zzl)
 	| COUNT LBRACE ID DOT ID RBRACE {
-
+			RelAttr attr;
+			relation_attr_init(&attr, $3, $5);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_COUNT;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
 		}
 	| MAX LBRACE ID DOT ID RBRACE {
-
+			RelAttr attr;
+			relation_attr_init(&attr, $3, $5);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_MAX;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
 		}
 	| MIN LBRACE ID DOT ID RBRACE {
-
+			RelAttr attr;
+			relation_attr_init(&attr, $3, $5);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_MIN;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
 		}
 	| AVG LBRACE ID DOT ID RBRACE {
-
+			RelAttr attr;
+			relation_attr_init(&attr, $3, $5);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_AVG;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
     }
   | COUNT LBRACE STAR RBRACE {
 			RelAttr attr;
@@ -429,7 +448,15 @@ select_attr:
 			ainfo.agg_type = AGG_COUNT;
 			ainfo.agg_attr = attr;
       selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-  }
+    }
+	| COUNT LBRACE ID DOT STAR RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, $3, "*");
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_COUNT;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+		}
     ;
 attr_list:
     /* empty */
