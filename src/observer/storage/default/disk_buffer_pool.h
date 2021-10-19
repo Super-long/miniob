@@ -46,8 +46,8 @@ typedef struct {
 // sizeof(Page) should be equal to BP_PAGE_SIZE
 
 typedef struct {
-  PageNum page_count;
-  int allocated_pages;
+  PageNum page_count;   // 目前文件共有多少页
+  int allocated_pages;  // 目前disk_buffer_pool中此文件已经分配的页
 } BPFileSubHeader;
 
 typedef struct {
@@ -127,10 +127,11 @@ public:
       }
     }
     if (!flag) {
-      LOG_ERROR("All pages have been used and pinned.");
       return nullptr;
     }
-
+    struct timespec tp;
+    clock_gettime(CLOCK_MONOTONIC, &tp);
+    frame[min].acc_time = tp.tv_sec * 1000 * 1000 * 1000UL + tp.tv_nsec;
     return frame + min;
   }
 
@@ -143,6 +144,9 @@ public:
 
       // This page has been loaded.
       if (frame[i].page.page_num == page_num) {
+        struct timespec tp;
+        clock_gettime(CLOCK_MONOTONIC, &tp);
+        frame[i].acc_time = tp.tv_sec * 1000 * 1000 * 1000UL + tp.tv_nsec;
         return &frame[i];
       }
     }
@@ -161,6 +165,7 @@ public:
     return;
   }
 
+  // @notes: 调用结束之后应该去判断是否要刷新磁盘
   std::vector<Frame*> free_file(int file_desc) {
     std::vector<Frame*> frame_array;
     for (int i = 0; i < capacity; i++) {
@@ -170,7 +175,7 @@ public:
         continue;
 
       if (frame[i].dirty) {
-        frame_array.push_back(frame[i]);
+        frame_array.push_back(frame + i);
       }
       allocated[i] = false;
     }

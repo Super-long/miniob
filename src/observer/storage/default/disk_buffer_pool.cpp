@@ -52,6 +52,7 @@ RC DiskBufferPool::create_file(const char *file_name)
     return RC::IOERR_ACCESS;
   }
 
+  // 第一个页中目前为[BPFileSubHeader,bitmap]
   Page page;
   memset(&page, 0, sizeof(Page));
 
@@ -139,6 +140,8 @@ RC DiskBufferPool::open_file(const char *file_name, int *file_id)
     return tmp;
   }
 
+  // 这里存储的其实是每个文件的头page，这里面存储了一个file_sub_header和一个bitmap
+  // 用来判断某一个是否被分配
   file_handle->hdr_page = &(file_handle->hdr_frame->page);
   file_handle->bitmap = file_handle->hdr_page->data + BP_FILE_SUB_HDR_SIZE;
   file_handle->file_sub_header = (BPFileSubHeader *)file_handle->hdr_page->data;
@@ -197,8 +200,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     return RC::SUCCESS;
   }
   
-
-  // Allocate one page and load the data into this page
+  // 没找到bufferpool没找到page_num对应的页，然后需要重新分配一个页，被替换的页如果脏需要刷新磁盘
   if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %s:%d, due to failed to alloc page.", file_handle->file_name, page_num);
     return tmp;
@@ -237,6 +239,7 @@ RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
       if (((file_handle->bitmap[byte]) & (1 << bit)) == 0) {
         (file_handle->file_sub_header->allocated_pages)++;
         file_handle->bitmap[byte] |= (1 << bit);
+        // 从已有的页中挤掉一个页，然后分配第i页，这个第i页是空闲的
         return get_this_page(file_id, i, page_handle);
       }
     }
@@ -324,10 +327,10 @@ RC DiskBufferPool::dispose_page(int file_id, PageNum page_num)
   }
 
   auto item = bp_manager_.get(file_handle->file_desc, page_num);
-  bp_manager_.free(file_handle->file_desc, page_num);
   if (item->pin_count != 0) {
     return RC::BUFFERPOOL_PAGE_PINNED;
   }
+  bp_manager_.free(file_handle->file_desc, page_num);
 
   file_handle->hdr_frame->dirty = true;
   file_handle->file_sub_header->allocated_pages--;
@@ -389,24 +392,16 @@ RC DiskBufferPool::flush_all_pages(int file_id)
 
 RC DiskBufferPool::force_all_pages(BPFileHandle *file_handle)
 {
-
-  for (int i = 0; i < BP_BUFFER_SIZE; i++) {
-    if (!bp_manager_.allocated[i])
-      continue;
-
-    if (bp_manager_.frame[i].file_desc != file_handle->file_desc)
-      continue;
-
-    if (bp_manager_.frame[i].dirty) {
-      RC rc = flush_block(&bp_manager_.frame[i]);
+  auto file_array = bp_manager_.free_file(file_handle->file_desc);
+  for (auto item : file_array) {
+    if (item->dirty) {
+      RC rc = flush_block(item);
       if (rc != RC::SUCCESS) {
         LOG_ERROR("Failed to flush all pages' of %s.", file_handle->file_name);
         return rc;
       }
     }
-    bp_manager_.allocated[i] = false;
   }
-  return RC::SUCCESS;
 }
 
 RC DiskBufferPool::flush_block(Frame *frame)
@@ -440,7 +435,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
   if (item->dirty) {
     RC rc = flush_block(item);
     if (rc != RC::SUCCESS) {
-      LOG_ERROR("Failed to flush block of %d for %d.", min, bp_manager_.frame[min].file_desc);
+      LOG_ERROR("Failed to flush block of %d for %d.", item->file_desc);
       return rc;
     }
   }
