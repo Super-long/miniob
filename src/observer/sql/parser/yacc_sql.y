@@ -421,7 +421,15 @@ select_attr:
 		}
 	| AVG LBRACE ID DOT ID RBRACE {
 
-	}
+    }
+  | COUNT LBRACE STAR RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, "*");
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_COUNT;
+			ainfo.agg_attr = attr;
+      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+  }
     ;
 attr_list:
     /* empty */
