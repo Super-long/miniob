@@ -190,7 +190,7 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
     LOG_ERROR("Failed to load page %s:%d, due to invalid pageNum.", file_handle->file_name, page_num);
     return tmp;
   }
-
+  //std::cout << "file_desc :" << file_handle->file_desc << "page_num : " << page_num << std::endl;
   auto item = bp_manager_.get(file_handle->file_desc, page_num);
   if (item != nullptr) {
     item->pin_count++;
@@ -209,6 +209,8 @@ RC DiskBufferPool::get_this_page(int file_id, PageNum page_num, BPPageHandle *pa
   page_handle->frame->file_desc = file_handle->file_desc;
   page_handle->frame->pin_count = 1;
   page_handle->frame->acc_time = current_time();
+  // 从文件中把page_num的偏移数据取出来
+  //std::cout << "然后load这个页的数据 page_num : " << page_num << " :file_handle " << file_handle->file_desc << std::endl;
   if ((tmp = load_page(page_num, file_handle, page_handle->frame)) != RC::SUCCESS) {
     LOG_ERROR("Failed to load page %s:%d", file_handle->file_name, page_num);
     page_handle->frame->pin_count = 0;
@@ -239,12 +241,11 @@ RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
       if (((file_handle->bitmap[byte]) & (1 << bit)) == 0) {
         (file_handle->file_sub_header->allocated_pages)++;
         file_handle->bitmap[byte] |= (1 << bit);
-        // 从已有的页中挤掉一个页，然后分配第i页，这个第i页是空闲的
+        // 找到前page_count连续页中一个空闲的页
         return get_this_page(file_id, i, page_handle);
       }
     }
   }
-
   if ((tmp = allocate_block(&(page_handle->frame))) != RC::SUCCESS) {
     LOG_ERROR("Failed to allocate page %s, due to no free page.", file_handle->file_name);
     return tmp;
@@ -258,14 +259,12 @@ RC DiskBufferPool::allocate_page(int file_id, BPPageHandle *page_handle)
   bit = page_num % 8;
   file_handle->bitmap[byte] |= (1 << bit);
   file_handle->hdr_frame->dirty = true;
-
   page_handle->frame->dirty = false;
   page_handle->frame->file_desc = file_handle->file_desc;
   page_handle->frame->pin_count = 1;
   page_handle->frame->acc_time = current_time();
   memset(&(page_handle->frame->page), 0, sizeof(Page));
   page_handle->frame->page.page_num = file_handle->file_sub_header->page_count - 1;
-
   // Use flush operation to extion file
   if ((tmp = flush_block(page_handle->frame)) != RC::SUCCESS) {
     LOG_ERROR("Failed to alloc page %s , due to failed to extend one page.", file_handle->file_name);
@@ -402,6 +401,7 @@ RC DiskBufferPool::force_all_pages(BPFileHandle *file_handle)
       }
     }
   }
+  return RC::SUCCESS;
 }
 
 RC DiskBufferPool::flush_block(Frame *frame)
@@ -433,6 +433,7 @@ RC DiskBufferPool::allocate_block(Frame **buffer)
   }
 
   if (item->dirty) {
+    //std::cout << "pagenum : " << item->page.page_num << "; file_desc: " << item->file_desc << "; :{" << item->page.data << "}" << std::endl;
     RC rc = flush_block(item);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to flush block of %d for %d.", item->file_desc);

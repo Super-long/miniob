@@ -36,7 +36,7 @@ using FrameNum = int;
 #define BP_PAGE_SIZE (1 << 12)
 #define BP_PAGE_DATA_SIZE (BP_PAGE_SIZE - sizeof(PageNum))
 #define BP_FILE_SUB_HDR_SIZE (sizeof(BPFileSubHeader))
-#define BP_BUFFER_SIZE 50
+#define BP_BUFFER_SIZE 1024   // buffer_size放大一点，目前bp_manger的是默认构造的，所以这个是硬编码的
 #define MAX_OPEN_FILE 1024
 
 typedef struct {
@@ -194,6 +194,7 @@ public:
 
 class DiskBufferPool {
 public:
+  DiskBufferPool(int size = BP_BUFFER_SIZE) : bp_manager_(size) {}
   /**
   * 创建一个名称为指定文件名的分页文件
   */
