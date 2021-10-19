@@ -1,5 +1,5 @@
 ## Required Feature
-* BufferPool Optimization [ongoing] by @lzl
+* BufferPool Optimization [done] by @lzl
 * Drop Table [done] by @zzl
 * Update Record [done] by @zzl
 * Date Type Support [done] by @zzl
