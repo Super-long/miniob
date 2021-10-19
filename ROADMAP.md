@@ -8,13 +8,13 @@
 * Aggregation [done] by @zzl (some left for @hzn)
 
 ## Optional Feature
-* Inner Join of Multi-Tables [ongoing]
+* Inner Join of Multi-Tables [ongoing] by @zzl
 * Atomic & Batch Insert of Data [planned]
 * Unique Index [planned]
-* NULL Type Support [ongoing]
+* NULL Type Support [ongoing] by @zzl
 * Subquery [planned]
 * Multi-Columns Index [planned]
-* Long Text Support [planned] by @zzl
+* Long Text Support [planned]
 * Simple Expression Support for Select [planned]
 * Complex Subquery [planned]
 * Order By Support [planned]
