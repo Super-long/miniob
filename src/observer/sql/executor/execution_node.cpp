@@ -56,10 +56,16 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     Tuple res;
     int max_index, min_index;
     int count = 0;
-    auto attr_index = tuple_schema_.index_of_field(table_name_.c_str(), attr_name_.c_str());
-    auto attr_type = tuple_schema_.field(attr_index).type();
+    int attr_index;
+    AttrType attr_type;
+
+    if (type_ != AGG_T::AGG_COUNT || attr_name_ != "*") {
+      attr_index = tuple_schema_.index_of_field(table_name_.c_str(), attr_name_.c_str());
+      attr_type  = tuple_schema_.field(attr_index).type();
+    }
+
     switch (type_) {
-        case AGG_T::AGG_COUNT:
+        case AGG_T::AGG_COUNT: {
             field_name = "count(" + attr_name_ + ")";
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
@@ -70,7 +76,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
             break;
-        case AGG_T::AGG_MAX:
+        }
+        case AGG_T::AGG_MAX: {
             field_name = "max(" + attr_name_ + ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
@@ -91,7 +98,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
             break;
-        case AGG_T::AGG_MIN:
+        }
+        case AGG_T::AGG_MIN: {
             field_name = "min(" + attr_name_ + ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
@@ -112,7 +120,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
             break;
-        case AGG_T::AGG_AVG:
+        }
+        case AGG_T::AGG_AVG: {
             // only support for int / float
             field_name = "avg(" + attr_name_ + ")";
             result_schema->add(FLOATS, "", field_name.c_str());
@@ -150,6 +159,11 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             tuple_set.clear();
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
+            break;
+        }
+        case AGG_T::AGG_NONE: {
+            break;
+        }
     }
     return SUCCESS;
 }
