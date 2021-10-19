@@ -57,6 +57,10 @@ QUOTE            [\'\"]
 [Ww][Hh][Ee][Rr][Ee]                  	 RETURN_TOKEN(WHERE);
 [Aa][Nn][Dd]                             RETURN_TOKEN(AND);
 [Ii][Nn][Ss][Ee][rR][tT]                 RETURN_TOKEN(INSERT);
+[Cc][Oo][Uu][Nn][Tt]                     RETURN_TOKEN(COUNT);
+[Mm][Ii][Nn]                             RETURN_TOKEN(MIN);
+[Mm][Aa][Xx]                             RETURN_TOKEN(MAX);
+[Aa][Vv][Gg]                             RETURN_TOKEN(AVG);
 [Ii][Nn][Tt][Oo]					 	             RETURN_TOKEN(INTO);
 [Vv][Aa][Ll][Uu][Ee][Ss]                 RETURN_TOKEN(VALUES);
 [Dd][Ee][Ll][Ee][Tt][Ee]                 RETURN_TOKEN(DELETE);

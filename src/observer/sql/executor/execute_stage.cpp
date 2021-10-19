@@ -221,6 +221,57 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
+
+  // aggregation
+  // only consider 1 table now
+  auto agg_info = selects.aggregation;
+  if (agg_info.agg_type != AGG_NONE) {
+      auto *agg_node = new AggregationNode(agg_info.agg_type);
+      auto *sel_node = new SelectExeNode;
+      if (selects.relation_num <= 0) {
+          delete sel_node;
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return INVALID_ARGUMENT;
+      }
+      const char *table_name = selects.relations[0];
+      auto *attr_name = agg_info.agg_attr.attribute_name;
+      rc = create_selection_executor(trx, selects, db, table_name, *sel_node);
+      if (rc != RC::SUCCESS) {
+          delete sel_node;
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return rc;
+      }
+
+      TupleSet tuple_set;
+      rc = sel_node->execute(tuple_set);
+      if (rc != SUCCESS) {
+          delete sel_node;
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return rc;
+      }
+      LOG_INFO("tuples: %d", tuple_set.size());
+
+      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()), table_name, attr_name);
+      rc = agg_node->execute(tuple_set);
+      if (rc != SUCCESS) {
+          delete sel_node;
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return rc;
+      }
+
+      LOG_INFO("xxxxxxxxxxxx");
+      std::stringstream ss;
+      tuple_set.print(ss);
+      session_event->set_response(ss.str());
+      end_trx_if_need(session, trx, true);
+      return rc;
+  }
+
+
   // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
   std::vector<SelectExeNode *> select_nodes;
   for (size_t i = 0; i < selects.relation_num; i++) {

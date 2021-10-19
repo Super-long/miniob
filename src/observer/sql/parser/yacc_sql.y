@@ -68,6 +68,10 @@ ParserContext *get_context(yyscan_t scanner)
         TABLES
         INDEX
         SELECT
+        COUNT
+        MAX
+        MIN
+        AVG
         DESC
         SHOW
         SYNC
@@ -373,6 +377,51 @@ select_attr:
 			relation_attr_init(&attr, $1, $3);
 			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
+	| COUNT LBRACE ID RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $3);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_COUNT;
+			ainfo.agg_attr = attr;
+                        selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+	        }
+	| MAX LBRACE ID RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $3);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_MAX;
+			ainfo.agg_attr = attr;
+			selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+	        }
+	| MIN LBRACE ID RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $3);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_MIN;
+			ainfo.agg_attr = attr;
+			selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+	        }
+	| AVG LBRACE ID RBRACE {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $3);
+			AggInfo ainfo;
+			ainfo.agg_type = AGG_AVG;
+			ainfo.agg_attr = attr;
+			selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+	}
+	// TODO: (zzl)
+	| COUNT LBRACE ID DOT ID RBRACE {
+
+		}
+	| MAX LBRACE ID DOT ID RBRACE {
+
+		}
+	| MIN LBRACE ID DOT ID RBRACE {
+
+		}
+	| AVG LBRACE ID DOT ID RBRACE {
+
+	}
     ;
 attr_list:
     /* empty */

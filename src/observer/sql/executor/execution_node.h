@@ -33,7 +33,7 @@ public:
 class SelectExeNode : public ExecutionNode {
 public:
   SelectExeNode();
-  virtual ~SelectExeNode();
+  ~SelectExeNode() override;
 
   RC init(Trx *trx, Table *table, TupleSchema && tuple_schema, std::vector<DefaultConditionFilter *> &&condition_filters);
 
@@ -43,6 +43,21 @@ private:
   Table  * table_;
   TupleSchema  tuple_schema_;
   std::vector<DefaultConditionFilter *> condition_filters_;
+};
+
+class AggregationNode : public ExecutionNode {
+public:
+    explicit AggregationNode(AGG_T type) : type_(type) {}
+    ~AggregationNode() override = default;
+
+    RC init(TupleSchema && tuple_schema, std::string &&table_name, std::string && attr_name);
+
+    RC execute(TupleSet &tuple_set) override;
+private:
+    TupleSchema  tuple_schema_;
+    AGG_T type_;
+    std::string table_name_;
+    std::string attr_name_;
 };
 
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_
