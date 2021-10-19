@@ -160,3 +160,33 @@ RC AggregationNode::init(TupleSchema &&tuple_schema, std::string &&table_name, s
     attr_name_ = attr_name;
     return SUCCESS;
 }
+
+RC CrossJoinNode::init(TupleSet *left_child, TupleSet *right_child) {
+    left_child_ = left_child;
+    right_child_ = right_child;
+    return SUCCESS;
+}
+
+RC CrossJoinNode::execute(TupleSet &tuple_set) {
+    auto left_schema = left_child_->get_schema();
+    auto right_schema = right_child_->get_schema();
+    left_schema.append(right_schema);
+
+    tuple_set.clear();
+    tuple_set.set_schema(left_schema);
+
+    for (auto & left_tuple : left_child_->tuples()) {
+        for (auto & right_tuple : right_child_->tuples()) {
+            Tuple new_tuple = Tuple();
+            for (auto & lv : left_tuple.values()) {
+                new_tuple.add(lv);
+            }
+            for (auto & rv : right_tuple.values()) {
+                new_tuple.add(rv);
+            }
+            tuple_set.add(std::move(new_tuple));
+        }
+    }
+
+    return SUCCESS;
+}

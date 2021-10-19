@@ -252,7 +252,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           end_trx_if_need(session, trx, false);
           return rc;
       }
-      LOG_INFO("tuples: %d", tuple_set.size());
 
       agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()), table_name, attr_name);
       rc = agg_node->execute(tuple_set);
@@ -262,8 +261,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           end_trx_if_need(session, trx, false);
           return rc;
       }
-
-      LOG_INFO("xxxxxxxxxxxx");
       std::stringstream ss;
       tuple_set.print(ss);
       session_event->set_response(ss.str());
@@ -313,6 +310,16 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   std::stringstream ss;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
+    auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
+    TupleSet result_set;
+    for (int i = tuple_sets.size()-2; i >=0; i--) {
+        auto right_set = std::move(tuple_sets.at(i));
+        auto *cross_join_node = new CrossJoinNode();
+        cross_join_node->init(&left_set, &right_set);
+        cross_join_node->execute(result_set);
+        left_set = std::move(result_set);
+    }
+    left_set.print(ss);
   } else {
     // 当前只查询一张表，直接返回结果即可
     tuple_sets.front().print(ss);

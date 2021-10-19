@@ -60,4 +60,17 @@ private:
     std::string attr_name_;
 };
 
+class CrossJoinNode : public ExecutionNode {
+public:
+    CrossJoinNode() : left_child_(nullptr), right_child_(nullptr) {}
+    ~CrossJoinNode() override = default;
+
+    RC init(TupleSet *left_child, TupleSet *right_child);
+
+    RC execute(TupleSet &tuple_set) override;
+private:
+    TupleSet *left_child_;
+    TupleSet *right_child_;
+};
+
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_
