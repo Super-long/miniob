@@ -126,17 +126,18 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             auto *sum_int = new IntValue(0);
             auto *sum_float = new FloatValue(0);
             for (int i = 0; i < tuple_set.tuples().size(); i++) {
-                auto tuple = tuple_set.tuples().at(i);
                 switch (attr_type) {
                     case INTS:
-                        sum_int->sum(tuple.get(attr_index));
+                        sum_int->sum(tuple_set.tuples().at(i).get(attr_index));
                         if (i == tuple_set.tuples().size()-1) {
+                            sum_int->div(FloatValue(tuple_set.tuples().size()));
                             res.add(sum_int);
                         }
                         break;
                     case FLOATS:
-                        sum_float->sum(tuple.get(attr_index));
+                        sum_float->sum(tuple_set.tuples().at(i).get(attr_index));
                         if (i == tuple_set.tuples().size()-1) {
+                            sum_float->div(FloatValue(tuple_set.tuples().size()));
                             res.add(sum_float);
                         }
                         break;
