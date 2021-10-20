@@ -58,7 +58,16 @@ public:
   }
 
   void to_string(std::ostream &os) const override {
-    os << value_;
+      auto size = std::snprintf(nullptr, 0, "%.2f", value_);
+      std::string output(size + 1, '\0');
+      std::sprintf(&output[0], "%.2f", value_);
+      if (output[output.size()-2] == '0') {
+          output[output.size()-2] = '\0';
+          if (output[output.size()-3] == '0') {
+              output[output.size()-4] = '\0';
+          }
+      }
+      os << output.c_str();
   }
 
   int compare(const TupleValue &other) const override {
