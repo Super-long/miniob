@@ -371,6 +371,9 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       if (0 == strcmp("*", attr.attribute_name)) {
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
+        if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
+            return RC::INVALID_ARGUMENT;
+        }
         break; // 没有校验，给出* 之后，再写字段的错误
       } else {
         // 列出这张表相关字段
