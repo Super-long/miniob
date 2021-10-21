@@ -18,7 +18,9 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 
 #include <string>
-#include <ostream>
+#include <iostream>
+#include <sstream>
+#include "../parser/parse_defs.h"
 
 class TupleValue {
 public:
@@ -26,6 +28,8 @@ public:
   virtual ~TupleValue() = default;
 
   virtual void to_string(std::ostream &os) const = 0;
+  virtual void to_string(std::string &s) const = 0;
+  virtual std::string to_string() const = 0;
   virtual int compare(const TupleValue &other) const = 0;
 private:
 };
@@ -37,6 +41,18 @@ public:
 
   void to_string(std::ostream &os) const override {
     os << value_;
+  }
+
+  void to_string(std::string &s) const override{
+      std::ostringstream oss;
+      to_string(oss);
+      s = oss.str();
+  }
+
+  std::string to_string() const override {
+    std::string s;
+    to_string(s);
+    return s;
   }
 
   int compare(const TupleValue &other) const override {
@@ -68,6 +84,18 @@ public:
           }
       }
       os << output.c_str();
+  }
+
+  void to_string(std::string &s) const override{
+      std::ostringstream oss;
+      to_string(oss);
+      s = oss.str();
+  }
+
+  std::string to_string() const override {
+    std::string s;
+    to_string(s);
+    return s;
   }
 
   int compare(const TupleValue &other) const override {
@@ -112,6 +140,18 @@ public:
     os << value_;
   }
 
+  void to_string(std::string &s) const override{
+      std::ostringstream oss;
+      to_string(oss);
+      s = oss.str();
+  }
+
+  std::string to_string() const override {
+    std::string s;
+    to_string(s);
+    return s;
+  }
+
   int compare(const TupleValue &other) const override {
     const StringValue &string_other = (const StringValue &)other;
     return strcmp(value_.c_str(), string_other.value_.c_str());
@@ -120,5 +160,6 @@ private:
   std::string value_;
 };
 
+TupleValue *ValueToTupleValue(Value *v);
 
 #endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_

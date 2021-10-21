@@ -59,14 +59,15 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     int attr_index;
     AttrType attr_type;
 
-    if (type_ != AGG_T::AGG_COUNT || attr_name_ != "*") {
-      attr_index = tuple_schema_.index_of_field(table_name_.c_str(), attr_name_.c_str());
+    if (attr_name_!= nullptr && !need_all_) {
+      attr_index = tuple_schema_.index_of_field(table_name_.c_str(), attr_name_);
       attr_type  = tuple_schema_.field(attr_index).type();
     }
 
     switch (type_) {
         case AGG_T::AGG_COUNT: {
-            field_name = "count(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
+            field_name = "count(" + (need_table_name_? table_name_ + "." :"") +
+              (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
             result_set->set_schema(*result_schema);
@@ -78,7 +79,9 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             break;
         }
         case AGG_T::AGG_MAX: {
-            field_name = "max(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
+            /* assert !need_all */
+            field_name = "max(" + (need_table_name_? table_name_ + "." :"") +
+              (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -87,20 +90,28 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 break;
             }
             res = Tuple();
-            max_index = 0;
-            for (int i = 1; i < tuple_set.tuples().size(); i++) {
-                if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(max_index).get(attr_index)) > 0) {
-                    max_index = i;
+            if (value_) {
+                res.add(value_);
+            } else if (need_all_) {
+                LOG_ERROR("Unsupported \"*\" for max");
+                return INVALID_ARGUMENT;
+            } else {
+                max_index = 0;
+                for (int i = 1; i < tuple_set.tuples().size(); i++) {
+                    if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(max_index).get(attr_index)) > 0) {
+                        max_index = i;
+                    }
                 }
+                res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             }
-            res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             tuple_set.clear();
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
             break;
         }
         case AGG_T::AGG_MIN: {
-            field_name = "min(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
+            field_name = "min(" + (need_table_name_? table_name_ + "." :"") +
+              (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -109,13 +120,20 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 break;
             }
             res = Tuple();
-            min_index = 0;
-            for (int i = 1; i < tuple_set.tuples().size(); i++) {
-                if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
-                    min_index = i;
+            if (value_) {
+                res.add(value_);
+            } else if (need_all_) {
+                LOG_ERROR("Unsupported \"*\" for min");
+                return INVALID_ARGUMENT;
+            } else {
+                min_index = 0;
+                for (int i = 1; i < tuple_set.tuples().size(); i++) {
+                    if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
+                        min_index = i;
+                    }
                 }
+                res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             }
-            res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             tuple_set.clear();
             tuple_set.set_schema(result_set->get_schema());
             tuple_set.add(std::move(res));
@@ -123,7 +141,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         }
         case AGG_T::AGG_AVG: {
             // only support for int / float
-            field_name = "avg(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
+            field_name = "avg(" + (need_table_name_? table_name_ + "." :"") +
+              (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(FLOATS, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -133,27 +152,34 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             }
             res = Tuple();
             auto *sum = new FloatValue(0);
-            for (int i = 0; i < tuple_set.tuples().size(); i++) {
-                switch (attr_type) {
-                    case INTS:
-                        sum->sumInt(tuple_set.tuples().at(i).get(attr_index));
-                        if (i == tuple_set.tuples().size()-1) {
-                            sum->div(FloatValue(tuple_set.tuples().size()));
-                            res.add(sum);
-                        }
-                        break;
-                    case FLOATS:
-                        sum->sumFloat(tuple_set.tuples().at(i).get(attr_index));
-                        if (i == tuple_set.tuples().size()-1) {
-                            sum->div(FloatValue(tuple_set.tuples().size()));
-                            res.add(sum);
-                        }
-                        break;
-                    case UNDEFINED:
-                    case CHARS:
-                    case DATES:
-                        LOG_ERROR("unsupported type");
-                        break;
+            if (value_) {
+                    res.add(value_);
+            } else if (need_all_) {
+                delete sum;
+                LOG_ERROR("Unsupported \"*\" for avg");
+                return INVALID_ARGUMENT;
+            } else {
+                for (int i = 0; i < tuple_set.tuples().size(); i++) {
+                    switch (attr_type) {
+                        case INTS:
+                            sum->sumInt(tuple_set.tuples().at(i).get(attr_index));
+                            if (i == tuple_set.tuples().size()-1) {
+                                sum->div(FloatValue(tuple_set.tuples().size()));
+                                res.add(sum);
+                            }
+                            break;
+                        case FLOATS:
+                            sum->sumFloat(tuple_set.tuples().at(i).get(attr_index));
+                            if (i == tuple_set.tuples().size()-1) {
+                                sum->div(FloatValue(tuple_set.tuples().size()));
+                                res.add(sum);
+                            }
+                            break;
+                        default:
+                            LOG_ERROR("unsupported type");
+                            delete sum;
+                            return INVALID_ARGUMENT;
+                    }
                 }
             }
             tuple_set.clear();
@@ -168,11 +194,19 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     return SUCCESS;
 }
 
-RC AggregationNode::init(TupleSchema &&tuple_schema, std::string &&table_name, std::string &&attr_name, int need_table_name) {
+RC AggregationNode::init(TupleSchema && tuple_schema,
+            std::string &&table_name,
+            const char *attr_name,
+            Value* value,
+            int need_table_name,
+            int need_all)
+{
     tuple_schema_ = tuple_schema;
     table_name_ = table_name;
     attr_name_ = attr_name;
     need_table_name_ = need_table_name;
+    need_all_ = need_all;
+    value_ = ValueToTupleValue(value);
     return SUCCESS;
 }
 

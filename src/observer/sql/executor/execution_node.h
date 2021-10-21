@@ -55,15 +55,23 @@ public:
     explicit AggregationNode(AGG_T type) : type_(type) {}
     ~AggregationNode() override = default;
 
-    RC init(TupleSchema && tuple_schema, std::string &&table_name, std::string && attr_name, int need_table_name = 0);
+    RC init(TupleSchema && tuple_schema,
+                std::string &&table_name,
+                const char *attr_name,
+                Value* value = nullptr,
+                int need_table_name = 0,
+                int need_all = 0
+    );
 
     RC execute(TupleSet &tuple_set) override;
 private:
     int need_table_name_;
+    int need_all_;
+    TupleValue *value_; /* [TODO] (adlternative) 可能是 之后是 attr_name + value[] 比如 max(id,1,3,4) */
     TupleSchema  tuple_schema_;
     AGG_T type_;
     std::string table_name_;
-    std::string attr_name_;
+    const char *attr_name_;
 };
 
 class CrossJoinNode : public ExecutionNode {
