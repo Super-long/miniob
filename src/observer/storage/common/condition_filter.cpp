@@ -83,9 +83,6 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.is_attr = false;
     left.value = condition.left_value.data;  // 校验type 或者转换类型
     type_left = condition.left_value.type;
-    if (table.table_meta().field(condition.right_attr.attribute_name)->type() == DATES) {
-        type_left = DATES;
-    }
 
     if (type_left == DATES) {
         char *data = static_cast<char *>(left.value);
