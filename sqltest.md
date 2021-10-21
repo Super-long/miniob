@@ -9,6 +9,11 @@
 3. insert into test3 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 
 ## Multi-Tables Query
-1. select * from test1, test2, test3;
-2. select test1.in1 from test1,test2 where test1.ch1 = test2.ch1;   // 目前有问题
-3. select * from test1,test2 where test1.ch1 = test2.ch1;
+1. select * from test1, test2, test3;                               // y
+2. select * from test1, test2 where test1.ch1 = test2.ch2;          // y
+3. select * from test1, test2 where test1.in1 < 10;                 // y
+4. select test1.in1, test2.in2 from test1, test2;                   // y
+5. select test1.in1, test2.in2 from test1,test2 where test1.ch1 = test2.ch2;   // n
+6. select test1.in1 from test1,test2 where test1.ch1 = test2.ch2;   // n
+7. select test1.in1 from test1,test2 where test1.in1 < 10;          // y
+8. select test1.in1 from test1,test2 where test2.in2 < 10;          // n    

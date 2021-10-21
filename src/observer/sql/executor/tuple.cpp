@@ -77,18 +77,35 @@ void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
 }
 
 void TupleSchema::add(AttrType type, const char *table_name, const char *field_name) {
-  fields_.emplace_back(type, table_name, field_name);
+  fields_.emplace_back(type, table_name, field_name, false);
 }
 
-void TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const char *field_name) {
+void TupleSchema::add_projection(AttrType type, const char *table_name, const char *field_name) {
+  fields_.emplace_back(type, table_name, field_name, true);
+}
+
+bool TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const char *field_name, bool is_projection) {
   for (const auto &field: fields_) {
     if (0 == strcmp(field.table_name(), table_name) &&
         0 == strcmp(field.field_name(), field_name)) {
-      return;
+        return false;
     }
   }
+  if (is_projection) {
+    add_projection(type, table_name, field_name);
+  } else {
+    add(type, table_name, field_name);
+  }
+  return true;
+}
 
-  add(type, table_name, field_name);
+void TupleSchema::erase_projection() {
+  for (size_t i = 0; i < fields_.size(); i++) {
+    if (fields_[i].get_projection()) {
+      fields_.erase(fields_.begin() + i);
+      i--;
+    }
+  }
 }
 
 void TupleSchema::append(const TupleSchema &other) {
