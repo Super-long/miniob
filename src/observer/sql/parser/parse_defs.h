@@ -71,6 +71,7 @@ enum AGG_T {
 typedef struct {
     enum AGG_T agg_type;
     RelAttr agg_attr;
+    int need_table_name;
 } AggInfo;
 
 // struct of select

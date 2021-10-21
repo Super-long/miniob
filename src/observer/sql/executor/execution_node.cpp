@@ -66,7 +66,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
 
     switch (type_) {
         case AGG_T::AGG_COUNT: {
-            field_name = "count(" + attr_name_ + ")";
+            field_name = "count(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
             result_set->set_schema(*result_schema);
@@ -78,7 +78,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             break;
         }
         case AGG_T::AGG_MAX: {
-            field_name = "max(" + attr_name_ + ")";
+            field_name = "max(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -100,7 +100,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             break;
         }
         case AGG_T::AGG_MIN: {
-            field_name = "min(" + attr_name_ + ")";
+            field_name = "min(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
             result_schema->add(attr_type, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -123,7 +123,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         }
         case AGG_T::AGG_AVG: {
             // only support for int / float
-            field_name = "avg(" + attr_name_ + ")";
+            field_name = "avg(" + (need_table_name_? table_name_ + "." :"") + attr_name_ + ")";
             result_schema->add(FLOATS, "", field_name.c_str());
             result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
@@ -168,10 +168,11 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     return SUCCESS;
 }
 
-RC AggregationNode::init(TupleSchema &&tuple_schema, std::string &&table_name, std::string &&attr_name) {
+RC AggregationNode::init(TupleSchema &&tuple_schema, std::string &&table_name, std::string &&attr_name, int need_table_name) {
     tuple_schema_ = tuple_schema;
     table_name_ = table_name;
     attr_name_ = attr_name;
+    need_table_name_ = need_table_name;
     return SUCCESS;
 }
 

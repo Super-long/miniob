@@ -55,10 +55,11 @@ public:
     explicit AggregationNode(AGG_T type) : type_(type) {}
     ~AggregationNode() override = default;
 
-    RC init(TupleSchema && tuple_schema, std::string &&table_name, std::string && attr_name);
+    RC init(TupleSchema && tuple_schema, std::string &&table_name, std::string && attr_name, int need_table_name = 0);
 
     RC execute(TupleSet &tuple_set) override;
 private:
+    int need_table_name_;
     TupleSchema  tuple_schema_;
     AGG_T type_;
     std::string table_name_;

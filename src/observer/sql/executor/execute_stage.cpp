@@ -256,7 +256,8 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           return rc;
       }
 
-      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()), table_name, attr_name);
+      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()), table_name, attr_name,
+          selects.aggregation.need_table_name);
       rc = agg_node->execute(tuple_set);
       if (rc != SUCCESS) {
           delete sel_node;
