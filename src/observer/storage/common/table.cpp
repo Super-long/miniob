@@ -629,6 +629,10 @@ RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value
         return RC::INVALID_ARGUMENT;
     }
 
+    if (this->table_meta().field(attribute_name)->type() != value->type) {
+        return RC::INVALID_ARGUMENT;
+    }
+
     auto filter = new CompositeConditionFilter();
     RC rc = filter->init(*this, conditions, condition_num);
     if (rc != SUCCESS) {
