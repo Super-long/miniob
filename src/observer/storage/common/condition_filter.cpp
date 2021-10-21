@@ -40,7 +40,7 @@ DefaultConditionFilter::~DefaultConditionFilter()
 
 RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op)
 {
-  if (attr_type < CHARS || attr_type > FLOATS) {
+  if (attr_type < CHARS || attr_type > DATES) {
     LOG_ERROR("Invalid condition with unsupported attribute type: %d", attr_type);
     return RC::INVALID_ARGUMENT;
   }
@@ -117,6 +117,9 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   // NOTE：这里没有实现不同类型的数据比较，比如整数跟浮点数之间的对比
   // 但是选手们还是要实现。这个功能在预选赛中会出现
   if (type_left != type_right) {
+      if ((type_left == DATES && type_right == CHARS) || (type_left == CHARS && type_right == DATES)) {
+          return init(left, right, DATES, condition.comp);
+      }
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
   }
 
@@ -158,6 +161,9 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       float right = *(float *)right_value;
       cmp_result = (int)(left - right);
     } break;
+    case DATES: {
+      cmp_result = strcmp(left_value, right_value);
+    }
     default: {
     }
   }
