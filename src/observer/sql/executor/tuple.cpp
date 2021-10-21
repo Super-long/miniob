@@ -207,6 +207,11 @@ const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
 }
 
+void TupleSet::remove(int index) {
+    tuples_.erase(tuples_.begin()+index);
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :
       table_(table), tuple_set_(tuple_set){

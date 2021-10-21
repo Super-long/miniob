@@ -322,6 +322,42 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         cross_join_node->execute(result_set);
         left_set = std::move(result_set);
     }
+      std::vector<DefaultConditionFilter *> condition_filters;
+      for (size_t i = 0; i < selects.condition_num; i++) {
+          auto condition = selects.conditions[i];
+          if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+              strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name) != 0) {
+              auto *filter = new DefaultConditionFilter();
+              auto leftCon = ConDesc();
+              leftCon.is_attr = true;
+              size_t index = left_set.schema().index_of_field(condition.left_attr.relation_name, condition.left_attr.attribute_name);
+              AttrType t1 = left_set.get_schema().field(index).type();
+              leftCon.attr_offset = index;
+
+              auto rightCon = ConDesc();
+              rightCon.is_attr = true;
+              index = left_set.schema().index_of_field(condition.right_attr.relation_name, condition.right_attr.attribute_name);
+              AttrType t2 = left_set.get_schema().field(index).type();
+              rightCon.attr_offset = index;
+
+              if (t1 != t2) {
+                  return RC::INVALID_ARGUMENT;
+              }
+
+              filter->init(leftCon, rightCon, t1, condition.comp);
+              condition_filters.emplace_back(filter);
+          }
+      }
+
+      for (auto *f : condition_filters) {
+          for (size_t i = 0; i < left_set.tuples().size(); i++) {
+              if (!f->filter_tuple(left_set.tuples()[i])) {
+                  left_set.remove(i);
+                  i--;
+              }
+          }
+      }
+
     left_set.print(ss);
   } else {
     // 当前只查询一张表，直接返回结果即可

@@ -135,6 +135,7 @@ public:
   bool is_empty() const;
   int size() const;
   const Tuple &get(int index) const;
+  void remove(int index);
   const std::vector<Tuple> &tuples() const;
 
   void print(std::ostream &os) const;
