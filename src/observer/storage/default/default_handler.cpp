@@ -178,6 +178,10 @@ RC DefaultHandler::update_record(Trx *trx, const char *dbname, const char *relat
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
 
+  if (table->table_meta().field(attribute_name) == nullptr) {
+      return RC::INVALID_ARGUMENT;
+  }
+
   return table->update_record(trx, attribute_name, value, condition_num, conditions, updated_count);
 }
 
