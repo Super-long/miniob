@@ -265,7 +265,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           return rc;
       }
       std::stringstream ss;
-      tuple_set.print(ss);
+      tuple_set.print(ss, false);
       session_event->set_response(ss.str());
       end_trx_if_need(session, trx, true);
       return rc;
@@ -366,14 +366,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
               }
           }
       }
-
     // 再过滤列，删除projection相关
     left_set.erase_projection();
     
-    left_set.print(ss);
+    left_set.print(ss, true);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    tuple_sets.front().print(ss);
+    tuple_sets.front().print(ss, false);
   }
 
   for (SelectExeNode *& tmp_node: select_nodes) {

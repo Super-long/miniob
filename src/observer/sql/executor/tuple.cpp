@@ -128,6 +128,7 @@ int TupleSchema::index_of_field(const char *table_name, const char *field_name) 
   return -1;
 }
 
+// 暂时不改是为了兼容性
 void TupleSchema::print(std::ostream &os) const {
   if (fields_.empty()) {
     os << "No schema";
@@ -142,15 +143,29 @@ void TupleSchema::print(std::ostream &os) const {
 
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
-    if (table_names.size() > 1) {
-      os << iter->table_name() << ".";
-    }
     os << iter->field_name() << " | ";
   }
 
   if (table_names.size() > 1) {
     os << fields_.back().table_name() << ".";
   }
+  os << fields_.back().field_name() << std::endl;
+}
+
+/* select test1.in1 from test1,test2 where test2.in2 < 10; */
+void TupleSchema::multi_print(std::ostream &os) const {
+  if (fields_.empty()) {
+    os << "No schema";
+    return;
+  }
+
+  for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
+       iter != end; ++iter) {
+    os << iter->table_name() << ".";
+    os << iter->field_name() << " | ";
+  }
+
+  os << fields_.back().table_name() << ".";
   os << fields_.back().field_name() << std::endl;
 }
 
@@ -182,13 +197,17 @@ void TupleSet::clear() {
   schema_.clear();
 }
 
-void TupleSet::print(std::ostream &os) const {
+void TupleSet::print(std::ostream &os, bool multi) const {
   if (schema_.fields().empty()) {
     LOG_WARN("Got empty schema");
     return;
   }
 
-  schema_.print(os);
+  if (multi) {
+    schema_.multi_print(os);
+  } else {
+    schema_.print(os);
+  }
 
   for (const Tuple &item : tuples_) {
     const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
@@ -232,6 +251,10 @@ void TupleSet::remove(int index) {
 
 void TupleSet::erase_projection() {
   auto schema_fields = schema_.fields();
+  std::stringstream ss;
+  schema_.print(ss);
+  LOG_DEBUG("schema display before : %s", ss.str().c_str());
+
   if (tuples_.size() > 0) {
     assert(schema_fields.size() == tuples_[0].size());
   }
@@ -252,6 +275,9 @@ void TupleSet::erase_projection() {
     }
   }
   schema_.erase_projection();
+  ss.str(""); // 清空缓冲区
+  schema_.print(ss);
+  LOG_DEBUG("schema display after : %s", ss.str().c_str());
 }
 
 

@@ -117,6 +117,7 @@ public:
   }
 
   void print(std::ostream &os) const;
+  void multi_print(std::ostream &os) const;   // 用于多表的输出
 public:
   static void from_table(const Table *table, TupleSchema &schema);
 private:
@@ -148,7 +149,7 @@ public:
   const std::vector<Tuple> &tuples() const;
   void erase_projection();
 
-  void print(std::ostream &os) const;
+  void print(std::ostream &os, bool multi) const;
 public:
   const TupleSchema &schema() const {
     return schema_;
