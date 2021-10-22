@@ -15,6 +15,7 @@ See the Mulan PSL v2 for more details. */
 #ifndef __OBSERVER_STORAGE_COMMON_CONDITION_FILTER_H_
 #define __OBSERVER_STORAGE_COMMON_CONDITION_FILTER_H_
 
+#include <sql/executor/tuple.h>
 #include "rc.h"
 #include "sql/parser/parse.h"
 
@@ -49,6 +50,7 @@ public:
   RC init(Table &table, const Condition &condition);
 
   virtual bool filter(const Record &rec) const;
+  virtual bool filter_tuple(const Tuple & tuple) const;
 
 public:
   const ConDesc &left() const {

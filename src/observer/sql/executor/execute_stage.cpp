@@ -225,6 +225,14 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
 
+  for (int i = 0; i < selects.relation_num; i++) {
+      LOG_INFO("%s", selects.relations[i]);
+  }
+
+    for (int j = 0; j < selects.attr_num; j++) {
+        LOG_INFO("%s", selects.attributes[j].attribute_name);
+    }
+
   // aggregation
   // only consider 1 table now
   auto agg_info = selects.aggregation;
@@ -265,7 +273,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           return rc;
       }
       std::stringstream ss;
-      tuple_set.print(ss);
+      tuple_set.print(ss, false);
       session_event->set_response(ss.str());
       end_trx_if_need(session, trx, true);
       return rc;
@@ -274,10 +282,18 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
   std::vector<SelectExeNode *> select_nodes;
+  LOG_DEBUG("selects.relation_num [%d]", selects.relation_num);
   for (size_t i = 0; i < selects.relation_num; i++) {
     const char *table_name = selects.relations[i];
+    LOG_DEBUG("selects.relations[%d] -> {%s}", i, selects.relations[i]);
+
     SelectExeNode *select_node = new SelectExeNode;
     rc = create_selection_executor(trx, selects, db, table_name, *select_node);
+
+    std::stringstream output;
+    select_node->return_schema().print(output); 
+    LOG_DEBUG("tmp TupleSchema after create_selection_executor : {%s}", output.str().c_str());
+
     if (rc != RC::SUCCESS) {
       delete select_node;
       for (SelectExeNode *& tmp_node: select_nodes) {
@@ -322,10 +338,49 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         cross_join_node->execute(result_set);
         left_set = std::move(result_set);
     }
-    left_set.print(ss);
+      std::vector<DefaultConditionFilter *> condition_filters;
+      for (size_t i = 0; i < selects.condition_num; i++) {
+          auto condition = selects.conditions[i];
+          if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+              strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name) != 0) {
+              auto *filter = new DefaultConditionFilter();
+              auto leftCon = ConDesc();
+              leftCon.is_attr = true;
+              size_t index = left_set.schema().index_of_field(condition.left_attr.relation_name, condition.left_attr.attribute_name);
+              AttrType t1 = left_set.get_schema().field(index).type();
+              leftCon.attr_offset = index;
+
+              auto rightCon = ConDesc();
+              rightCon.is_attr = true;
+              index = left_set.schema().index_of_field(condition.right_attr.relation_name, condition.right_attr.attribute_name);
+              AttrType t2 = left_set.get_schema().field(index).type();
+              rightCon.attr_offset = index;
+
+              if (t1 != t2) {
+                  return RC::INVALID_ARGUMENT;
+              }
+
+              filter->init(leftCon, rightCon, t1, condition.comp);
+              condition_filters.emplace_back(filter);
+          }
+      }
+
+      // 先过滤行
+      for (auto *f : condition_filters) {
+          for (size_t i = 0; i < left_set.tuples().size(); i++) {
+              if (!f->filter_tuple(left_set.tuples()[i])) {
+                  left_set.remove(i);
+                  i--;
+              }
+          }
+      }
+    // 再过滤列，删除projection相关
+    left_set.erase_projection();
+    
+    left_set.print(ss, true);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    tuple_sets.front().print(ss);
+    tuple_sets.front().print(ss, false);
   }
 
   for (SelectExeNode *& tmp_node: select_nodes) {
@@ -351,7 +406,20 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
     return RC::SCHEMA_FIELD_MISSING;
   }
 
-  schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name());
+  schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name(), false);
+    
+  return RC::SUCCESS;
+}
+
+static RC schema_add_field_projection(Table *table, const char *field_name, TupleSchema &schema) {
+  const FieldMeta *field_meta = table->table_meta().field(field_name);
+  if (nullptr == field_meta) {
+    LOG_WARN("No such field. %s.%s", table->name(), field_name);
+    return RC::SCHEMA_FIELD_MISSING;
+  }
+
+  schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name(), true);
+    
   return RC::SUCCESS;
 }
 
@@ -364,26 +432,40 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     LOG_WARN("No such table [%s] in db [%s]", table_name, db);
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
+  // 当出现*的时候就不会在查询condition的时候插入数据了
+  bool is_star = false;
+
+  LOG_DEBUG("create_selection_executor->table_name : {%s}", table_name);
 
   for (int i = selects.attr_num - 1; i >= 0; i--) {
     const RelAttr &attr = selects.attributes[i];
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+      LOG_DEBUG("attr.relation_name {%s}.  table_name : {%s}", attr.relation_name, table_name);
       if (0 == strcmp("*", attr.attribute_name)) {
+        is_star = true;
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
-        if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
-            return RC::INVALID_ARGUMENT;
+        if (selects.relation_num == 1) {
+            if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
+                return RC::INVALID_ARGUMENT;
+            }
         }
         break; // 没有校验，给出* 之后，再写字段的错误
       } else {
         // 列出这张表相关字段
+        LOG_DEBUG("attr.attribute_name {%s}.", attr.attribute_name);
         RC rc = schema_add_field(table, attr.attribute_name, schema);
+        LOG_DEBUG("schema_add_field return {%d}.", rc);
         if (rc != RC::SUCCESS) {
           return rc;
         }
       }
     }
   }
+  std::stringstream output;
+  schema.print(output);
+
+  LOG_DEBUG("tmp TupleSchema before filter : {%s}",output.str().c_str());
 
   // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
   std::vector<DefaultConditionFilter *> condition_filters;
@@ -406,7 +488,28 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       }
       condition_filters.push_back(condition_filter);
     }
+
+    // 现在把数据插进去，最后也要删除多余的这些行
+    if ((condition.left_is_attr == 1 || condition.right_is_attr == 1) && !is_star) {
+      RC rc;
+      if (match_table(selects, condition.left_attr.relation_name, table_name)) {
+        LOG_DEBUG("lhs schema_add_field : {%s}", condition.left_attr.attribute_name);
+        RC rc = schema_add_field_projection(table, condition.left_attr.attribute_name, schema);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      } 
+      if (match_table(selects, condition.right_attr.relation_name, table_name)) {
+        LOG_DEBUG("rhs schema_add_field : {%s}", condition.right_attr.attribute_name);
+        RC rc = schema_add_field_projection(table, condition.right_attr.attribute_name, schema);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+    }
   }
+  schema.print(output); 
+  LOG_DEBUG("tmp TupleSchema after filter : {%s}", output.str().c_str());
 
   return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }

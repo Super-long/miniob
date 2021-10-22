@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <stddef.h>
+#include <sql/executor/tuple.h>
 #include "condition_filter.h"
 #include "record_manager.h"
 #include "common/log/log.h"
@@ -256,6 +257,30 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   }
 
   return init(left, right, type_left, condition.comp);
+}
+
+bool DefaultConditionFilter::filter_tuple(const Tuple & tuple) const {
+
+    auto cmp_result = tuple.get(left_.attr_offset).compare(tuple.get(right_.attr_offset));
+
+    switch (comp_op_) {
+        case EQUAL_TO:
+            return 0 == cmp_result;
+        case LESS_EQUAL:
+            return cmp_result <= 0;
+        case NOT_EQUAL:
+            return cmp_result != 0;
+        case LESS_THAN:
+            return cmp_result < 0;
+        case GREAT_EQUAL:
+            return cmp_result >= 0;
+        case GREAT_THAN:
+            return cmp_result > 0;
+
+        default:
+            break;
+    }
+    return false;
 }
 
 bool DefaultConditionFilter::filter(const Record &rec) const

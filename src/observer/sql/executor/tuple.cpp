@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/table.h"
 #include "common/log/log.h"
 #include "common/time/datetime.h"
+#include <assert.h>
+#include <sstream>
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
@@ -77,18 +79,35 @@ void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
 }
 
 void TupleSchema::add(AttrType type, const char *table_name, const char *field_name) {
-  fields_.emplace_back(type, table_name, field_name);
+  fields_.emplace_back(type, table_name, field_name, false);
 }
 
-void TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const char *field_name) {
+void TupleSchema::add_projection(AttrType type, const char *table_name, const char *field_name) {
+  fields_.emplace_back(type, table_name, field_name, true);
+}
+
+bool TupleSchema::add_if_not_exists(AttrType type, const char *table_name, const char *field_name, bool is_projection) {
   for (const auto &field: fields_) {
     if (0 == strcmp(field.table_name(), table_name) &&
         0 == strcmp(field.field_name(), field_name)) {
-      return;
+        return false;
     }
   }
+  if (is_projection) {
+    add_projection(type, table_name, field_name);
+  } else {
+    add(type, table_name, field_name);
+  }
+  return true;
+}
 
-  add(type, table_name, field_name);
+void TupleSchema::erase_projection() {
+  for (size_t i = 0; i < fields_.size(); i++) {
+    if (fields_[i].get_projection()) {
+      fields_.erase(fields_.begin() + i);
+      i--;
+    }
+  }
 }
 
 void TupleSchema::append(const TupleSchema &other) {
@@ -109,6 +128,7 @@ int TupleSchema::index_of_field(const char *table_name, const char *field_name) 
   return -1;
 }
 
+// 暂时不改是为了兼容性
 void TupleSchema::print(std::ostream &os) const {
   if (fields_.empty()) {
     os << "No schema";
@@ -123,15 +143,29 @@ void TupleSchema::print(std::ostream &os) const {
 
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
-    if (table_names.size() > 1) {
-      os << iter->table_name() << ".";
-    }
     os << iter->field_name() << " | ";
   }
 
   if (table_names.size() > 1) {
     os << fields_.back().table_name() << ".";
   }
+  os << fields_.back().field_name() << std::endl;
+}
+
+/* select test1.in1 from test1,test2 where test2.in2 < 10; */
+void TupleSchema::multi_print(std::ostream &os) const {
+  if (fields_.empty()) {
+    os << "No schema";
+    return;
+  }
+
+  for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
+       iter != end; ++iter) {
+    os << iter->table_name() << ".";
+    os << iter->field_name() << " | ";
+  }
+
+  os << fields_.back().table_name() << ".";
   os << fields_.back().field_name() << std::endl;
 }
 
@@ -163,13 +197,17 @@ void TupleSet::clear() {
   schema_.clear();
 }
 
-void TupleSet::print(std::ostream &os) const {
+void TupleSet::print(std::ostream &os, bool multi) const {
   if (schema_.fields().empty()) {
     LOG_WARN("Got empty schema");
     return;
   }
 
-  schema_.print(os);
+  if (multi) {
+    schema_.multi_print(os);
+  } else {
+    schema_.print(os);
+  }
 
   for (const Tuple &item : tuples_) {
     const std::vector<std::shared_ptr<TupleValue>> &values = item.values();
@@ -206,6 +244,42 @@ const Tuple &TupleSet::get(int index) const {
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
 }
+
+void TupleSet::remove(int index) {
+    tuples_.erase(tuples_.begin()+index);
+}
+
+void TupleSet::erase_projection() {
+  auto schema_fields = schema_.fields();
+  std::stringstream ss;
+  schema_.print(ss);
+  LOG_DEBUG("schema display before : %s", ss.str().c_str());
+
+  if (tuples_.size() > 0) {
+    assert(schema_fields.size() == tuples_[0].size());
+  }
+  LOG_DEBUG("tuple.size(%d)", tuples_[0].size());
+
+  // 💩 满天飞
+  for (int i = 0; i < schema_fields.size(); ++i) {
+    if(schema_fields[i].get_projection()) {
+      LOG_DEBUG("schema_fields[%d] %s", i, schema_fields[i].field_name());
+      for (int j = 0; j < tuples_.size(); ++j) {
+        std::stringstream output;
+        tuples_[j].get_pointer(i)->to_string(output);
+        LOG_DEBUG("tuple[%d] %s", j, output.str().c_str());
+        tuples_[j].remove(i);
+      }
+      schema_fields.erase(schema_fields.begin() + i);
+      i--;
+    }
+  }
+  schema_.erase_projection();
+  ss.str(""); // 清空缓冲区
+  schema_.print(ss);
+  LOG_DEBUG("schema display after : %s", ss.str().c_str());
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :
