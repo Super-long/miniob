@@ -20,3 +20,38 @@
 9. select test1.in1 from test1,test2 where test2.in2 < 10;                                  // y
 10. select test1.*, test2.in2 from test1, test2;                                            // y
 11. select *, test1.in1 from test1, test2;                                                  // y
+
+## Aggregate Functions
+select count(in1) from test1;                                                            // n
+select count(fl1) from test1;                                                            // n
+select count(da1) from test1;                                                            // n
+select count(1.1) from test1;                                                            // n
+select count(1) from test1;                                                              // n
+select count(*) from test1;                                                              // n
+select count(test1.id) from test1;                                                       // n
+select count(test1.*) from test1;                                                        // n
+
+select max(in1) from test1;                                                              // n
+select max(fl1) from test1;                                                              // n
+select max(da1) from test1;                                                              // n
+select max(1.1) from test1;                                                              // n
+select max(1) from test1;                                                                // n
+select max(1,0,3) from test1;                                                            // n
+select max(in1,0,3) from test1;                                                          // n
+select max(in1,0,2.2) from test1;                                                        // n
+select max(test1.id) from test1;                                                         // n
+
+select min(in1) from test1;                                                              // n
+select min(fl1) from test1;                                                              // n
+select min(da1) from test1;                                                              // n
+select min(1.1) from test1;                                                              // n
+select min(1) from test1;                                                                // n
+select min(1,0,3) from test1;                                                            // n
+select min(in1,0,3) from test1;                                                          // n
+select min(in1,0,2.2) from test1;                                                        // n
+select min(test1.id) from test1;                                                         // n
+
+select min(in1),max(in1) from test1;                                                     // n
+
+select count(*) from test1, test2;                                                       // n
+select count(test1.id),max(test2.id) from test1, test2;                                  // n
