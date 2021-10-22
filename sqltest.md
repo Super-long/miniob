@@ -18,4 +18,4 @@
 7. select test1.in1 from test1,test2 where test1.ch1 = test2.ch2;                           // y
 8. select test1.in1 from test1,test2 where test1.in1 < 10;                                  // y
 9. select test1.in1 from test1,test2 where test2.in2 < 10;                                  // y
-10. select test1.* test2.in2 from test1, test2;                                             // n
+10. select test1.*, test2.in2 from test1, test2;                                             // y
