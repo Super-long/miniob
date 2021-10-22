@@ -22,6 +22,9 @@
 11. select *, test1.in1 from test1, test2;                                                  // y
 
 ## Aggregate Functions
+1. 不考虑常量中的字符串
+2. 不考虑count(1,0,3)这种case，聚合函数中最多一个元素
+
 select count(in1) from test1;                                                            // n
 select count(fl1) from test1;                                                            // n
 select count(da1) from test1;                                                            // n
@@ -36,9 +39,6 @@ select max(fl1) from test1;                                                     
 select max(da1) from test1;                                                              // n
 select max(1.1) from test1;                                                              // n
 select max(1) from test1;                                                                // n
-select max(1,0,3) from test1;                                                            // n
-select max(in1,0,3) from test1;                                                          // n
-select max(in1,0,2.2) from test1;                                                        // n
 select max(test1.id) from test1;                                                         // n
 
 select min(in1) from test1;                                                              // n
@@ -46,9 +46,6 @@ select min(fl1) from test1;                                                     
 select min(da1) from test1;                                                              // n
 select min(1.1) from test1;                                                              // n
 select min(1) from test1;                                                                // n
-select min(1,0,3) from test1;                                                            // n
-select min(in1,0,3) from test1;                                                          // n
-select min(in1,0,2.2) from test1;                                                        // n
 select min(test1.id) from test1;                                                         // n
 
 select min(in1),max(in1) from test1;                                                     // n
