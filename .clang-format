@@ -1,0 +1,5 @@
+# Run manually to reformat a file:
+# clang-format -i --style=file <file>
+# find . -iname '*.cpp' -o -iname '*.hpp' -o -iname '*.h' -o -iname '*.h.' | xargs clang-format -i --style=file
+BasedOnStyle: Google
+DerivePointerAlignment: false

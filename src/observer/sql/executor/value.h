@@ -1,10 +1,9 @@
-/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its affiliates. All rights reserved.
-miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its
+affiliates. All rights reserved. miniob is licensed under Mulan PSL v2. You can
+use this software according to the terms and conditions of the Mulan PSL v2. You
+may obtain a copy of Mulan PSL v2 at: http://license.coscl.org.cn/MulanPSL2 THIS
+SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
@@ -17,36 +16,35 @@ See the Mulan PSL v2 for more details. */
 
 #include <string.h>
 
-#include <string>
 #include <iostream>
 #include <sstream>
+#include <string>
+
 #include "../parser/parse_defs.h"
 
 class TupleValue {
-public:
+ public:
   TupleValue() = default;
   virtual ~TupleValue() = default;
 
-  virtual void to_string(std::ostream &os) const = 0;
-  virtual void to_string(std::string &s) const = 0;
+  virtual void to_string(std::ostream& os) const = 0;
+  virtual void to_string(std::string& s) const = 0;
   virtual std::string to_string() const = 0;
-  virtual int compare(const TupleValue &other) const = 0;
-private:
+  virtual int compare(const TupleValue& other) const = 0;
+
+ private:
 };
 
 class IntValue : public TupleValue {
-public:
-  explicit IntValue(int value) : value_(value) {
-  }
+ public:
+  explicit IntValue(int value) : value_(value) {}
 
-  void to_string(std::ostream &os) const override {
-    os << value_;
-  }
+  void to_string(std::ostream& os) const override { os << value_; }
 
-  void to_string(std::string &s) const override{
-      std::ostringstream oss;
-      to_string(oss);
-      s = oss.str();
+  void to_string(std::string& s) const override {
+    std::ostringstream oss;
+    to_string(oss);
+    s = oss.str();
   }
 
   std::string to_string() const override {
@@ -55,41 +53,38 @@ public:
     return s;
   }
 
-  int compare(const TupleValue &other) const override {
-    const IntValue & int_other = (const IntValue &)other;
+  int compare(const TupleValue& other) const override {
+    const IntValue& int_other = (const IntValue&)other;
     return value_ - int_other.value_;
   }
 
-  int value() const {
-      return value_;
-  }
+  int value() const { return value_; }
 
-private:
+ private:
   int value_;
 };
 
 class FloatValue : public TupleValue {
-public:
-  explicit FloatValue(float value) : value_(value) {
-  }
+ public:
+  explicit FloatValue(float value) : value_(value) {}
 
-  void to_string(std::ostream &os) const override {
-      auto size = std::snprintf(nullptr, 0, "%.2f", value_);
-      std::string output(size + 1, '\0');
-      std::sprintf(&output[0], "%.2f", value_);
-      if (output[output.size()-2] == '0') {
-          output[output.size()-2] = '\0';
-          if (output[output.size()-3] == '0') {
-              output[output.size()-4] = '\0';
-          }
+  void to_string(std::ostream& os) const override {
+    auto size = std::snprintf(nullptr, 0, "%.2f", value_);
+    std::string output(size + 1, '\0');
+    std::sprintf(&output[0], "%.2f", value_);
+    if (output[output.size() - 2] == '0') {
+      output[output.size() - 2] = '\0';
+      if (output[output.size() - 3] == '0') {
+        output[output.size() - 4] = '\0';
       }
-      os << output.c_str();
+    }
+    os << output.c_str();
   }
 
-  void to_string(std::string &s) const override{
-      std::ostringstream oss;
-      to_string(oss);
-      s = oss.str();
+  void to_string(std::string& s) const override {
+    std::ostringstream oss;
+    to_string(oss);
+    s = oss.str();
   }
 
   std::string to_string() const override {
@@ -98,10 +93,10 @@ public:
     return s;
   }
 
-  int compare(const TupleValue &other) const override {
-    const FloatValue & float_other = (const FloatValue &)other;
+  int compare(const TupleValue& other) const override {
+    const FloatValue& float_other = (const FloatValue&)other;
     float result = value_ - float_other.value_;
-    if (result > 0) { // 浮点数没有考虑精度问题
+    if (result > 0) {  // 浮点数没有考虑精度问题
       return 1;
     }
     if (result < 0) {
@@ -110,40 +105,36 @@ public:
     return 0;
   }
 
-    void sumFloat(const TupleValue &other) {
-        auto float_other = (const FloatValue &)other;
-        value_ += float_other.value_;
-    }
-
-    void sumInt(const TupleValue &other) {
-      auto int_other = (const IntValue &)other;
-      value_ += int_other.value();
+  void sumFloat(const TupleValue& other) {
+    auto float_other = (const FloatValue&)other;
+    value_ += float_other.value_;
   }
 
-    void div(const TupleValue &other) {
-        auto float_other = (const FloatValue &)other;
-        value_ /= float_other.value_;
-    }
+  void sumInt(const TupleValue& other) {
+    auto int_other = (const IntValue&)other;
+    value_ += int_other.value();
+  }
 
-private:
+  void div(const TupleValue& other) {
+    auto float_other = (const FloatValue&)other;
+    value_ /= float_other.value_;
+  }
+
+ private:
   float value_;
 };
 
 class StringValue : public TupleValue {
-public:
-  StringValue(const char *value, int len) : value_(value, len){
-  }
-  explicit StringValue(const char *value) : value_(value) {
-  }
+ public:
+  StringValue(const char* value, int len) : value_(value, len) {}
+  explicit StringValue(const char* value) : value_(value) {}
 
-  void to_string(std::ostream &os) const override {
-    os << value_;
-  }
+  void to_string(std::ostream& os) const override { os << value_; }
 
-  void to_string(std::string &s) const override{
-      std::ostringstream oss;
-      to_string(oss);
-      s = oss.str();
+  void to_string(std::string& s) const override {
+    std::ostringstream oss;
+    to_string(oss);
+    s = oss.str();
   }
 
   std::string to_string() const override {
@@ -152,14 +143,15 @@ public:
     return s;
   }
 
-  int compare(const TupleValue &other) const override {
-    const StringValue &string_other = (const StringValue &)other;
+  int compare(const TupleValue& other) const override {
+    const StringValue& string_other = (const StringValue&)other;
     return strcmp(value_.c_str(), string_other.value_.c_str());
   }
-private:
+
+ private:
   std::string value_;
 };
 
-TupleValue *ValueToTupleValue(Value *v);
+TupleValue* ValueToTupleValue(Value* v);
 
-#endif //__OBSERVER_SQL_EXECUTOR_VALUE_H_
+#endif  //__OBSERVER_SQL_EXECUTOR_VALUE_H_

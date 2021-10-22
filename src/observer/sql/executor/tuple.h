@@ -1,10 +1,9 @@
-/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its affiliates. All rights reserved.
-miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its
+affiliates. All rights reserved. miniob is licensed under Mulan PSL v2. You can
+use this software according to the terms and conditions of the Mulan PSL v2. You
+may obtain a copy of Mulan PSL v2 at: http://license.coscl.org.cn/MulanPSL2 THIS
+SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
@@ -18,155 +17,144 @@ See the Mulan PSL v2 for more details. */
 #include <memory>
 #include <vector>
 
-#include "sql/parser/parse.h"
 #include "sql/executor/value.h"
+#include "sql/parser/parse.h"
 
 class Table;
 
 class Tuple {
-public:
+ public:
   Tuple() = default;
 
-  Tuple(const Tuple &other);
+  Tuple(const Tuple& other);
 
   ~Tuple();
 
-  Tuple(Tuple &&other) noexcept ;
-  Tuple & operator=(Tuple &&other) noexcept ;
+  Tuple(Tuple&& other) noexcept;
+  Tuple& operator=(Tuple&& other) noexcept;
 
-  void add(TupleValue *value);
-  void add(const std::shared_ptr<TupleValue> &other);
+  void add(TupleValue* value);
+  void add(const std::shared_ptr<TupleValue>& other);
   void add(int value);
   void add(float value);
-  void add(const char *s, int len);
+  void add(const char* s, int len);
 
-  const std::vector<std::shared_ptr<TupleValue>> &values() const {
+  const std::vector<std::shared_ptr<TupleValue>>& values() const {
     return values_;
   }
 
-  int size() const {
-    return values_.size();
-  }
+  int size() const { return values_.size(); }
 
-  const TupleValue &get(int index) const {
-    return *values_[index];
-  }
+  const TupleValue& get(int index) const { return *values_[index]; }
 
-  void remove(int index) {
-    values_.erase(values_.begin() + index);
-  }
+  void remove(int index) { values_.erase(values_.begin() + index); }
 
-  const std::shared_ptr<TupleValue> &get_pointer(int index) const {
+  const std::shared_ptr<TupleValue>& get_pointer(int index) const {
     return values_[index];
   }
 
-private:
-  std::vector<std::shared_ptr<TupleValue>>  values_;
+ private:
+  std::vector<std::shared_ptr<TupleValue>> values_;
 };
 
 class TupleField {
-public:
-  TupleField(AttrType type, const char *table_name, const char *field_name, bool projection) :
-          type_(type), table_name_(table_name), field_name_(field_name), is_projection(projection){
-  }
+ public:
+  TupleField(AttrType type, const char* table_name, const char* field_name,
+             bool projection)
+      : type_(type),
+        table_name_(table_name),
+        field_name_(field_name),
+        is_projection(projection) {}
 
-  AttrType  type() const{
-    return type_;
-  }
+  AttrType type() const { return type_; }
 
-  const char *table_name() const {
-    return table_name_.c_str();
-  }
-  const char *field_name() const {
-    return field_name_.c_str();
-  }
+  const char* table_name() const { return table_name_.c_str(); }
+  const char* field_name() const { return field_name_.c_str(); }
 
   std::string to_string() const;
-  void set_projection() {is_projection = true;}
-  bool get_projection() const {return is_projection;}
-private:
-  AttrType  type_;
+  void set_projection() { is_projection = true; }
+  bool get_projection() const { return is_projection; }
+
+ private:
+  AttrType type_;
   std::string table_name_;
   std::string field_name_;
-  bool is_projection;       // 用于标记哪些列是可以在最后被过滤的
+  bool is_projection;  // 用于标记哪些列是可以在最后被过滤的
 };
 
 class TupleSchema {
-public:
+ public:
   TupleSchema() = default;
   ~TupleSchema() = default;
 
-  void add(AttrType type, const char *table_name, const char *field_name);
-  void add_projection(AttrType type, const char *table_name, const char *field_name);
-  bool add_if_not_exists(AttrType type, const char *table_name, const char *field_name, bool is_projection);
+  void add(AttrType type, const char* table_name, const char* field_name);
+  void add_projection(AttrType type, const char* table_name,
+                      const char* field_name);
+  bool add_if_not_exists(AttrType type, const char* table_name,
+                         const char* field_name, bool is_projection);
   void erase_projection();
   // void merge(const TupleSchema &other);
-  void append(const TupleSchema &other);
+  void append(const TupleSchema& other);
 
-  const std::vector<TupleField> &fields() const {
-    return fields_;
-  }
+  const std::vector<TupleField>& fields() const { return fields_; }
 
-  const TupleField &field(int index) const {
-    return fields_[index];
-  }
+  const TupleField& field(int index) const { return fields_[index]; }
 
-  int index_of_field(const char *table_name, const char *field_name) const;
-  void clear() {
-    fields_.clear();
-  }
+  int index_of_field(const char* table_name, const char* field_name) const;
+  void clear() { fields_.clear(); }
 
-  void print(std::ostream &os) const;
-  void multi_print(std::ostream &os) const;   // 用于多表的输出
-public:
-  static void from_table(const Table *table, TupleSchema &schema);
-private:
+  void print(std::ostream& os) const;
+  void multi_print(std::ostream& os) const;  // 用于多表的输出
+ public:
+  static void from_table(const Table* table, TupleSchema& schema);
+
+ private:
   std::vector<TupleField> fields_;
 };
 
 class TupleSet {
-public:
+ public:
   TupleSet() = default;
-  TupleSet(TupleSet &&other);
-  explicit TupleSet(const TupleSchema &schema) : schema_(schema) {
-  }
-  TupleSet &operator =(TupleSet &&other);
+  TupleSet(TupleSet&& other);
+  explicit TupleSet(const TupleSchema& schema) : schema_(schema) {}
+  TupleSet& operator=(TupleSet&& other);
 
   ~TupleSet() = default;
 
-  void set_schema(const TupleSchema &schema);
+  void set_schema(const TupleSchema& schema);
 
-  const TupleSchema &get_schema() const;
+  const TupleSchema& get_schema() const;
 
-  void add(Tuple && tuple);
+  void add(Tuple&& tuple);
 
   void clear();
 
   bool is_empty() const;
   int size() const;
-  const Tuple &get(int index) const;
+  const Tuple& get(int index) const;
   void remove(int index);
-  const std::vector<Tuple> &tuples() const;
+  const std::vector<Tuple>& tuples() const;
   void erase_projection();
 
-  void print(std::ostream &os, bool multi) const;
-public:
-  const TupleSchema &schema() const {
-    return schema_;
-  }
-private:
+  void print(std::ostream& os, bool multi) const;
+
+ public:
+  const TupleSchema& schema() const { return schema_; }
+
+ private:
   std::vector<Tuple> tuples_;
   TupleSchema schema_;
 };
 
 class TupleRecordConverter {
-public:
-  TupleRecordConverter(Table *table, TupleSet &tuple_set);
+ public:
+  TupleRecordConverter(Table* table, TupleSet& tuple_set);
 
-  void add_record(const char *record);
-private:
-  Table *table_;
-  TupleSet &tuple_set_;
+  void add_record(const char* record);
+
+ private:
+  Table* table_;
+  TupleSet& tuple_set_;
 };
 
-#endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_
+#endif  //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

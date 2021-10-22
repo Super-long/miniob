@@ -1,10 +1,9 @@
-/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its affiliates. All rights reserved.
-miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its
+affiliates. All rights reserved. miniob is licensed under Mulan PSL v2. You can
+use this software according to the terms and conditions of the Mulan PSL v2. You
+may obtain a copy of Mulan PSL v2 at: http://license.coscl.org.cn/MulanPSL2 THIS
+SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
@@ -12,32 +11,33 @@ See the Mulan PSL v2 for more details. */
 // Created by Longda on 2021/4/13.
 //
 
-#include <string.h>
-#include <string>
-
 #include "parse_stage.h"
+
+#include <string.h>
+
+#include <string>
 
 #include "common/conf/ini.h"
 #include "common/io/io.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "common/seda/timer_stage.h"
+#include "event/execution_plan_event.h"
 #include "event/session_event.h"
 #include "event/sql_event.h"
 #include "sql/parser/parse.h"
-#include "event/execution_plan_event.h"
 
 using namespace common;
 
 //! Constructor
-ParseStage::ParseStage(const char *tag) : Stage(tag) {}
+ParseStage::ParseStage(const char* tag) : Stage(tag) {}
 
 //! Destructor
 ParseStage::~ParseStage() {}
 
 //! Parse properties, instantiate a stage object
-Stage *ParseStage::make_stage(const std::string &tag) {
-  ParseStage *stage = new (std::nothrow) ParseStage(tag.c_str());
+Stage* ParseStage::make_stage(const std::string& tag) {
+  ParseStage* stage = new (std::nothrow) ParseStage(tag.c_str());
   if (stage == nullptr) {
     LOG_ERROR("new ParseStage failed");
     return nullptr;
@@ -63,7 +63,7 @@ bool ParseStage::set_properties() {
 bool ParseStage::initialize() {
   LOG_TRACE("Enter");
 
-  std::list<Stage *>::iterator stgp = next_stage_list_.begin();
+  std::list<Stage*>::iterator stgp = next_stage_list_.begin();
   optimize_stage_ = *(stgp++);
 
   LOG_TRACE("Exit");
@@ -77,17 +77,17 @@ void ParseStage::cleanup() {
   LOG_TRACE("Exit");
 }
 
-void ParseStage::handle_event(StageEvent *event) {
+void ParseStage::handle_event(StageEvent* event) {
   LOG_TRACE("Enter\n");
 
-  StageEvent *new_event = handle_request(event);
+  StageEvent* new_event = handle_request(event);
   if (nullptr == new_event) {
     callback_event(event, nullptr);
     event->done_immediate();
     return;
   }
 
-  CompletionCallback *cb = new (std::nothrow) CompletionCallback(this, nullptr);
+  CompletionCallback* cb = new (std::nothrow) CompletionCallback(this, nullptr);
   if (cb == nullptr) {
     LOG_ERROR("Failed to new callback for SQLStageEvent");
     callback_event(event, nullptr);
@@ -101,19 +101,19 @@ void ParseStage::handle_event(StageEvent *event) {
   return;
 }
 
-void ParseStage::callback_event(StageEvent *event, CallbackContext *context) {
+void ParseStage::callback_event(StageEvent* event, CallbackContext* context) {
   LOG_TRACE("Enter\n");
-  SQLStageEvent *sql_event = static_cast<SQLStageEvent *>(event);
+  SQLStageEvent* sql_event = static_cast<SQLStageEvent*>(event);
   sql_event->session_event()->done_immediate();
   LOG_TRACE("Exit\n");
   return;
 }
 
-StageEvent *ParseStage::handle_request(StageEvent *event) {
-  SQLStageEvent *sql_event = static_cast<SQLStageEvent *>(event);
-  const std::string &sql = sql_event->get_sql();
-  
-  Query *result = query_create();
+StageEvent* ParseStage::handle_request(StageEvent* event) {
+  SQLStageEvent* sql_event = static_cast<SQLStageEvent*>(event);
+  const std::string& sql = sql_event->get_sql();
+
+  Query* result = query_create();
   if (nullptr == result) {
     LOG_ERROR("Failed to create query.");
     return nullptr;
@@ -122,9 +122,10 @@ StageEvent *ParseStage::handle_request(StageEvent *event) {
   RC ret = parse(sql.c_str(), result);
   if (ret != RC::SUCCESS) {
     // set error information to event
-    //const char *error = result->sstr.errors != nullptr ? result->sstr.errors : "Unknown error";
-    //char response[256];
-    //snprintf(response, sizeof(response), "Failed to parse sql: %s, error msg: %s\n", sql.c_str(), error);
+    // const char *error = result->sstr.errors != nullptr ? result->sstr.errors
+    // : "Unknown error"; char response[256]; snprintf(response,
+    // sizeof(response), "Failed to parse sql: %s, error msg: %s\n",
+    // sql.c_str(), error);
     sql_event->session_event()->set_response("FAILURE\n");
     query_destroy(result);
     return nullptr;

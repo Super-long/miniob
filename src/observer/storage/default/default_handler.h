@@ -1,10 +1,9 @@
-/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its affiliates. All rights reserved.
-miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its
+affiliates. All rights reserved. miniob is licensed under Mulan PSL v2. You can
+use this software according to the terms and conditions of the Mulan PSL v2. You
+may obtain a copy of Mulan PSL v2 at: http://license.coscl.org.cn/MulanPSL2 THIS
+SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
@@ -14,20 +13,20 @@ See the Mulan PSL v2 for more details. */
 #ifndef __OBSERVER_STORAGE_DEFAULT_ENGINE_H__
 #define __OBSERVER_STORAGE_DEFAULT_ENGINE_H__
 
-#include <string>
 #include <map>
+#include <string>
 
 #include "storage/common/db.h"
 
 class Trx;
 
 class DefaultHandler {
-public:
+ public:
   DefaultHandler();
 
   virtual ~DefaultHandler() noexcept;
 
-  RC init(const char *base_dir);
+  RC init(const char* base_dir);
   void destroy();
 
   /**
@@ -38,7 +37,7 @@ public:
    * @param dbname
    * @return
    */
-  RC create_db(const char *dbname);
+  RC create_db(const char* dbname);
 
   /**
    * 删除一个数据库，dbName为要删除的数据库对应文件夹的路径名。
@@ -46,21 +45,21 @@ public:
    * @param dbname
    * @return
    */
-  RC drop_db(const char *dbname);
+  RC drop_db(const char* dbname);
 
   /**
    * 改变系统的当前数据库为dbName对应的文件夹中的数据库。接口要求同dropDB
    * @param dbname
    * @return
    */
-  RC open_db(const char *dbname);
+  RC open_db(const char* dbname);
 
   /**
    * 关闭当前数据库。
    * 该操作将关闭当前数据库中打开的所有文件，关闭文件操作将自动使所有相关的缓冲区页面更新到磁盘
    * @return
    */
-  RC close_db(const char *dbname);
+  RC close_db(const char* dbname);
 
   /**
    * 执行一条除SELECT之外的SQL语句，如果执行成功，返回SUCCESS，否则返回错误码。
@@ -68,7 +67,7 @@ public:
    * @param sql
    * @return
    */
-  RC execute(const char *sql);
+  RC execute(const char* sql);
 
   /**
    * 创建一个名为relName的表。
@@ -81,14 +80,15 @@ public:
    * @param attributes
    * @return
    */
-  RC create_table(const char *dbname, const char *relation_name, int attribute_count, const AttrInfo *attributes);
+  RC create_table(const char* dbname, const char* relation_name,
+                  int attribute_count, const AttrInfo* attributes);
 
   /**
    * 销毁名为relName的表以及在该表上建立的所有索引
    * @param relName
    * @return
    */
-  RC drop_table(const char *dbname, const char *relation_name);
+  RC drop_table(const char* dbname, const char* relation_name);
 
   /**
    * 该函数在关系relName的属性attrName上创建名为indexName的索引。
@@ -102,17 +102,20 @@ public:
    * @param attrName
    * @return
    */
-  RC create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name);
+  RC create_index(Trx* trx, const char* dbname, const char* relation_name,
+                  const char* index_name, const char* attribute_name);
 
   /**
    * 该函数用来删除名为indexName的索引。
    * 函数首先检查索引是否存在，如果不存在，则返回一个非零的错误码。否则，销毁该索引
-   * @param index_name 
+   * @param index_name
    * @return
    */
-  RC drop_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name);
+  RC drop_index(Trx* trx, const char* dbname, const char* relation_name,
+                const char* index_name);
 
-  RC insert_record(Trx *trx, const char *dbname, const char *relation_name, int value_num, const InsertValueTuple *values);
+  RC insert_record(Trx* trx, const char* dbname, const char* relation_name,
+                   int value_num, const InsertValueTuple* values);
 
   /**
    * 该函数用来删除relName表中所有满足指定条件的元组以及该元组对应的索引项。
@@ -123,8 +126,9 @@ public:
    * @param conditions
    * @return
    */
-  RC delete_record(Trx *trx, const char *dbname, const char *relation_name,
-                           int condition_num, const Condition *conditions, int *deleted_count);
+  RC delete_record(Trx* trx, const char* dbname, const char* relation_name,
+                   int condition_num, const Condition* conditions,
+                   int* deleted_count);
 
   /**
    * 该函数用于更新relName表中所有满足指定条件的元组，
@@ -138,21 +142,24 @@ public:
    * @param conditions
    * @return
    */
-  RC update_record(Trx * trx, const char *dbname, const char *relation_name, const char *attribute_name, const Value *value,
-                            int condition_num, const Condition *conditions, int *updated_count);
+  RC update_record(Trx* trx, const char* dbname, const char* relation_name,
+                   const char* attribute_name, const Value* value,
+                   int condition_num, const Condition* conditions,
+                   int* updated_count);
 
-public:
-  Db *find_db(const char *dbname) const;
-  Table *find_table(const char * dbname, const char *table_name) const;
+ public:
+  Db* find_db(const char* dbname) const;
+  Table* find_table(const char* dbname, const char* table_name) const;
 
   RC sync();
 
-public:
-  static DefaultHandler &get_default();
-private:
+ public:
+  static DefaultHandler& get_default();
+
+ private:
   std::string base_dir_;
   std::string db_dir_;
-  std::map<std::string, Db*>          opened_dbs_;
-}; // class Handler
+  std::map<std::string, Db*> opened_dbs_;
+};  // class Handler
 
-#endif // __OBSERVER_STORAGE_DEFAULT_ENGINE_H__
+#endif  // __OBSERVER_STORAGE_DEFAULT_ENGINE_H__
