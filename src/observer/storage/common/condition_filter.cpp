@@ -85,7 +85,13 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.value = condition.left_value.data;  // 校验type 或者转换类型
     type_left = condition.left_value.type;
 
-    if (type_left == DATES) {
+    AttrType tright;
+    if (!condition.right_is_attr) {
+        tright = condition.right_value.type;
+    } else {
+        tright = table_meta.field(condition.right_attr.attribute_name)->type();
+    }
+    if (tright == DATES) {
         char *data = static_cast<char *>(left.value);
         std::string new_value;
         char *token = strtok(data, "-");
@@ -148,7 +154,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
             default:
                 return INVALID_ARGUMENT;
         }
-        left.value = (void *)new_value.c_str();
+        memcpy(left.value, new_value.c_str(), new_value.size()+1);
     }
 
     left.attr_length = 0;
@@ -235,7 +241,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
               default:
                   return INVALID_ARGUMENT;
           }
-          right.value = (void *)new_value.c_str();
+          memcpy(right.value, new_value.c_str(), new_value.size()+1);
       }
 
     right.attr_length = 0;
@@ -251,6 +257,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   // 但是选手们还是要实现。这个功能在预选赛中会出现
   if (type_left != type_right) {
       if ((type_left == DATES && type_right == CHARS) || (type_left == CHARS && type_right == DATES)) {
+          LOG_INFO("%s\n%s", (char *)left.value, (char *)right.value);
           return init(left, right, DATES, condition.comp);
       }
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;

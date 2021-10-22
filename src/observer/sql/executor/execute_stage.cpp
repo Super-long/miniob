@@ -225,14 +225,6 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
 
-  for (int i = 0; i < selects.relation_num; i++) {
-      LOG_INFO("%s", selects.relations[i]);
-  }
-
-    for (int j = 0; j < selects.attr_num; j++) {
-        LOG_INFO("%s", selects.attributes[j].attribute_name);
-    }
-
   // aggregation
   // only consider 1 table now
   auto agg_info = selects.aggregation;
