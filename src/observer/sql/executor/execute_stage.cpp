@@ -225,6 +225,14 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
 
+  for (int i = 0; i < selects.relation_num; i++) {
+      LOG_INFO("%s", selects.relations[i]);
+  }
+
+    for (int j = 0; j < selects.attr_num; j++) {
+        LOG_INFO("%s", selects.attributes[j].attribute_name);
+    }
+
   // aggregation
   // only consider 1 table now
   auto agg_info = selects.aggregation;
@@ -437,8 +445,10 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         is_star = true;
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
-        if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
-            return RC::INVALID_ARGUMENT;
+        if (selects.relation_num == 1) {
+            if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
+                return RC::INVALID_ARGUMENT;
+            }
         }
         break; // 没有校验，给出* 之后，再写字段的错误
       } else {
