@@ -52,6 +52,10 @@ public:
     return *values_[index];
   }
 
+  void remove(int index) {
+    values_.erase(values_.begin() + index);
+  }
+
   const std::shared_ptr<TupleValue> &get_pointer(int index) const {
     return values_[index];
   }
@@ -142,6 +146,7 @@ public:
   const Tuple &get(int index) const;
   void remove(int index);
   const std::vector<Tuple> &tuples() const;
+  void erase_projection();
 
   void print(std::ostream &os) const;
 public:

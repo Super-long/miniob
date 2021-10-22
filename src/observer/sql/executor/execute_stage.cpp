@@ -368,6 +368,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       }
 
     // 再过滤列，删除projection相关
+    left_set.erase_projection();
     
     left_set.print(ss);
   } else {
@@ -484,14 +485,14 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       RC rc;
       if (match_table(selects, condition.left_attr.relation_name, table_name)) {
         LOG_DEBUG("lhs schema_add_field : {%s}", condition.left_attr.attribute_name);
-        RC rc = schema_add_field(table, condition.left_attr.attribute_name, schema);
+        RC rc = schema_add_field_projection(table, condition.left_attr.attribute_name, schema);
         if (rc != RC::SUCCESS) {
           return rc;
         }
       } 
       if (match_table(selects, condition.right_attr.relation_name, table_name)) {
         LOG_DEBUG("rhs schema_add_field : {%s}", condition.right_attr.attribute_name);
-        RC rc = schema_add_field(table, condition.right_attr.attribute_name, schema);
+        RC rc = schema_add_field_projection(table, condition.right_attr.attribute_name, schema);
         if (rc != RC::SUCCESS) {
           return rc;
         }

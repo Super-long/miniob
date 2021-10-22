@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/table.h"
 #include "common/log/log.h"
 #include "common/time/datetime.h"
+#include <assert.h>
+#include <sstream>
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
@@ -226,6 +228,30 @@ const std::vector<Tuple> &TupleSet::tuples() const {
 
 void TupleSet::remove(int index) {
     tuples_.erase(tuples_.begin()+index);
+}
+
+void TupleSet::erase_projection() {
+  auto schema_fields = schema_.fields();
+  if (tuples_.size() > 0) {
+    assert(schema_fields.size() == tuples_[0].size());
+  }
+  LOG_DEBUG("tuple.size(%d)", tuples_[0].size());
+
+  // 💩 满天飞
+  for (int i = 0; i < schema_fields.size(); ++i) {
+    if(schema_fields[i].get_projection()) {
+      LOG_DEBUG("schema_fields[%d] %s", i, schema_fields[i].field_name());
+      for (int j = 0; j < tuples_.size(); ++j) {
+        std::stringstream output;
+        tuples_[j].get_pointer(i)->to_string(output);
+        LOG_DEBUG("tuple[%d] %s", j, output.str().c_str());
+        tuples_[j].remove(i);
+      }
+      schema_fields.erase(schema_fields.begin() + i);
+      i--;
+    }
+  }
+  schema_.erase_projection();
 }
 
 

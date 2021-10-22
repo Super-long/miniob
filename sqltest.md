@@ -13,7 +13,7 @@
 2. select * from test1, test2 where test1.ch1 = test2.ch2;          // y
 3. select * from test1, test2 where test1.in1 < 10;                 // y
 4. select test1.in1, test2.in2 from test1, test2;                   // y
-5. select test1.in1, test2.in2 from test1,test2 where test1.ch1 = test2.ch2;   // n
+5. select test1.in1, test2.in2 from test1,test2 where test1.ch1 = test2.ch2;   // y
 6. select test1.in1 from test1,test2 where test1.ch1 = test2.ch2;   // n
-7. select test1.in1 from test1,test2 where test1.in1 < 10;          // y
+7. select test1.in1 from test1,test2 where test1.in1 < 10;          // n
 8. select test1.in1 from test1,test2 where test2.in2 < 10;          // n    
