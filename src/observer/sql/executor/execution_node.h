@@ -53,7 +53,8 @@ private:
 class AggregationNode : public ExecutionNode {
 public:
     explicit AggregationNode(AGG_T type) : type_(type) {}
-    ~AggregationNode() override = default;
+
+    ~AggregationNode() override{ delete (value_); }
 
     RC init(TupleSchema && tuple_schema,
                 std::string &&table_name,

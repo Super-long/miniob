@@ -401,15 +401,17 @@ bool match_table(const Selects &selects, const char *table_name_in_condition, co
   return selects.relation_num == 1;
 }
 
-static RC schema_add_field(Table *table, const char *field_name, TupleSchema &schema) {
+static RC schema_add_field(Table *table, const char *field_name, TupleSchema &schema, bool if_not_exists) {
   const FieldMeta *field_meta = table->table_meta().field(field_name);
   if (nullptr == field_meta) {
     LOG_WARN("No such field. %s.%s", table->name(), field_name);
     return RC::SCHEMA_FIELD_MISSING;
   }
+  if (if_not_exists)
+    schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name(), false);
+  else
+    schema.add(field_meta->type(), table->name(), field_meta->name());
 
-  schema.add_if_not_exists(field_meta->type(), table->name(), field_meta->name(), false);
-    
   return RC::SUCCESS;
 }
 
@@ -445,18 +447,12 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       LOG_DEBUG("attr.relation_name {%s}.  table_name : {%s}", attr.relation_name, table_name);
       if (0 == strcmp("*", attr.attribute_name)) {
         is_star = true;
-        // 列出这张表所有字段
+        // 向 schema 追加这张表所有字段
         TupleSchema::from_table(table, schema);
-        if (selects.relation_num == 1) {
-            if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
-                return RC::INVALID_ARGUMENT;
-            }
-        }
-        break; // 没有校验，给出* 之后，再写字段的错误
       } else {
-        // 列出这张表相关字段
+        // 向 schema 追加相应字段
         LOG_DEBUG("attr.attribute_name {%s}.", attr.attribute_name);
-        RC rc = schema_add_field(table, attr.attribute_name, schema);
+        RC rc = schema_add_field(table, attr.attribute_name, schema, false);
         LOG_DEBUG("schema_add_field return {%d}.", rc);
         if (rc != RC::SUCCESS) {
           return rc;
