@@ -229,16 +229,23 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // only consider 1 table now
   auto agg_info = selects.aggregation;
   if (agg_info.agg_type != AGG_NONE) {
+      char *attr_name = nullptr;
+      Value *value = nullptr;
+      /* COUNT|AVG|... */
       auto *agg_node = new AggregationNode(agg_info.agg_type);
       auto *sel_node = new SelectExeNode;
+      const char *table_name = selects.relations[0];
+      attr_name = agg_info.agg_attr.attribute_name;
       if (selects.relation_num <= 0) {
           delete sel_node;
           delete agg_node;
           end_trx_if_need(session, trx, false);
           return INVALID_ARGUMENT;
       }
-      const char *table_name = selects.relations[0];
-      auto *attr_name = agg_info.agg_attr.attribute_name;
+
+      if (agg_info.is_constant)
+          value = &agg_info.value;
+
       rc = create_selection_executor(trx, selects, db, table_name, *sel_node);
       if (rc != RC::SUCCESS) {
           delete sel_node;
@@ -256,7 +263,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           return rc;
       }
 
-      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()), table_name, attr_name);
+      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()),
+          table_name, attr_name, value,
+          agg_info.need_table_name,
+          agg_info.need_all);
       rc = agg_node->execute(tuple_set);
       if (rc != SUCCESS) {
           delete sel_node;
