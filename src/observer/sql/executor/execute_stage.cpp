@@ -224,65 +224,9 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
   const Selects &selects = sql->sstr.selection;
+  TupleSet result_tupleset;
 
-  // aggregation
-  // only consider 1 table now
-  auto agg_info = selects.aggregation;
-  if (agg_info.agg_type != AGG_NONE) {
-      char *attr_name = nullptr;
-      Value *value = nullptr;
-      /* COUNT|AVG|... */
-      auto *agg_node = new AggregationNode(agg_info.agg_type);
-      auto *sel_node = new SelectExeNode;
-      const char *table_name = selects.relations[0];
-      attr_name = agg_info.agg_attr.attribute_name;
-      if (selects.relation_num <= 0) {
-          delete sel_node;
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return INVALID_ARGUMENT;
-      }
-
-      if (agg_info.is_constant)
-          value = &agg_info.value;
-
-      rc = create_selection_executor(trx, selects, db, table_name, *sel_node);
-      if (rc != RC::SUCCESS) {
-          delete sel_node;
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return rc;
-      }
-
-      TupleSet tuple_set;
-      rc = sel_node->execute(tuple_set);
-      if (rc != SUCCESS) {
-          delete sel_node;
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return rc;
-      }
-
-      agg_node->init(const_cast<TupleSchema &&>(tuple_set.get_schema()),
-          table_name, attr_name, value,
-          agg_info.need_table_name,
-          agg_info.need_all);
-      rc = agg_node->execute(tuple_set);
-      if (rc != SUCCESS) {
-          delete sel_node;
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return rc;
-      }
-      std::stringstream ss;
-      tuple_set.print(ss, false);
-      session_event->set_response(ss.str());
-      end_trx_if_need(session, trx, true);
-      return rc;
-  }
-
-
-  // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
+  // step1:用所有跟这张表关联的condition生成filter，然后生成schema，最后生成最底层的select执行节点
   std::vector<SelectExeNode *> select_nodes;
   LOG_DEBUG("selects.relation_num [%d]", selects.relation_num);
   for (size_t i = 0; i < selects.relation_num; i++) {
@@ -313,6 +257,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     return RC::SQL_SYNTAX;
   }
 
+  // step2:用上面生成的select_node拿到tuples
   std::vector<TupleSet> tuple_sets;
   for (SelectExeNode *&node: select_nodes) {
     TupleSet tuple_set;
@@ -328,6 +273,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     }
   }
 
+  // step3:多表的情况下进行join操作，生成一份新的tuples
   std::stringstream ss;
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
@@ -340,49 +286,86 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         cross_join_node->execute(result_set);
         left_set = std::move(result_set);
     }
-      std::vector<DefaultConditionFilter *> condition_filters;
-      for (size_t i = 0; i < selects.condition_num; i++) {
-          auto condition = selects.conditions[i];
-          if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
-              strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name) != 0) {
-              auto *filter = new DefaultConditionFilter();
-              auto leftCon = ConDesc();
-              leftCon.is_attr = true;
-              size_t index = left_set.schema().index_of_field(condition.left_attr.relation_name, condition.left_attr.attribute_name);
-              AttrType t1 = left_set.get_schema().field(index).type();
-              leftCon.attr_offset = index;
 
-              auto rightCon = ConDesc();
-              rightCon.is_attr = true;
-              index = left_set.schema().index_of_field(condition.right_attr.relation_name, condition.right_attr.attribute_name);
-              AttrType t2 = left_set.get_schema().field(index).type();
-              rightCon.attr_offset = index;
+    std::vector<DefaultConditionFilter *> condition_filters;
+    for (size_t i = 0; i < selects.condition_num; i++) {
+        auto condition = selects.conditions[i];
+        if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+            strcmp(condition.left_attr.relation_name, condition.right_attr.relation_name) != 0) {
+            auto *filter = new DefaultConditionFilter();
+            auto leftCon = ConDesc();
+            leftCon.is_attr = true;
+            size_t index = left_set.schema().index_of_field(condition.left_attr.relation_name, condition.left_attr.attribute_name);
+            AttrType t1 = left_set.get_schema().field(index).type();
+            leftCon.attr_offset = index;
 
-              if (t1 != t2) {
-                  return RC::INVALID_ARGUMENT;
-              }
+            auto rightCon = ConDesc();
+            rightCon.is_attr = true;
+            index = left_set.schema().index_of_field(condition.right_attr.relation_name, condition.right_attr.attribute_name);
+            AttrType t2 = left_set.get_schema().field(index).type();
+            rightCon.attr_offset = index;
 
-              filter->init(leftCon, rightCon, t1, condition.comp);
-              condition_filters.emplace_back(filter);
-          }
-      }
+            if (t1 != t2) {
+                return RC::INVALID_ARGUMENT;
+            }
 
-      // 先过滤行
-      for (auto *f : condition_filters) {
-          for (size_t i = 0; i < left_set.tuples().size(); i++) {
-              if (!f->filter_tuple(left_set.tuples()[i])) {
-                  left_set.remove(i);
-                  i--;
-              }
-          }
-      }
+            filter->init(leftCon, rightCon, t1, condition.comp);
+            condition_filters.emplace_back(filter);
+        }
+    }
+
+    // 先过滤行
+    for (auto *f : condition_filters) {
+        for (size_t i = 0; i < left_set.tuples().size(); i++) {
+            if (!f->filter_tuple(left_set.tuples()[i])) {
+                left_set.remove(i);
+                i--;
+            }
+        }
+    }
     // 再过滤列，删除projection相关
     left_set.erase_projection();
-    
-    left_set.print(ss, true);
+    result_tupleset = std::move(left_set);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    tuple_sets.front().print(ss, false);
+    result_tupleset = std::move(tuple_sets.front());
+  }
+
+  // step4: aggregation相关，当我们执行过滤以后，如果应该执行agg，理论我们应该在此时持有所有需要的field
+  // 1). 只有一个count(*)的话，需要多表join/单表以后取行数；这种情况我们”可以“需要所有的列
+  // 2). 如果既有count(*),又存在其他属性的话，需要的只是此属性和where条件中的值，但是我们取所有行也没有错
+  // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
+  // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
+  auto agg_info = selects.aggregation;
+  if (agg_info.agg_type != AGG_NONE) {
+      auto *agg_node = new AggregationNode(agg_info.agg_type);
+
+      if (selects.relation_num <= 0) {
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return INVALID_ARGUMENT;
+      }
+
+      // agg补充完以后需要改下init相关的函数
+      const char *table_name = selects.relations[0];
+      auto *attr_name = agg_info.agg_attr.attribute_name;
+
+      agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name);
+      rc = agg_node->execute(result_tupleset);
+      if (rc != SUCCESS) {
+          delete agg_node;
+          end_trx_if_need(session, trx, false);
+          return rc;
+      }
+      end_trx_if_need(session, trx, true);
+  }
+
+  // step5: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
+  if(tuple_sets.size() > 1){
+    result_tupleset.print(ss, true);
+  } else {
+    // 当前只查询一张表，直接返回结果即可
+    result_tupleset.print(ss, false);
   }
 
   for (SelectExeNode *& tmp_node: select_nodes) {
