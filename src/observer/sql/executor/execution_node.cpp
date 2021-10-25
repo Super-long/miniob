@@ -185,6 +185,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
 RC AggregationNode::init(TupleSchema && tuple_schema,
             std::string &&table_name,
             const char *attr_name,
+            AGG_T type,
             int need_table_name,
             Value* value,
             int need_all)
@@ -192,12 +193,11 @@ RC AggregationNode::init(TupleSchema && tuple_schema,
     tuple_schema_ = tuple_schema;
     table_name_ = table_name;
     attr_name_ = attr_name;
+    type_ = type;
     need_table_name_ = need_table_name;
     need_all_ = need_all;
     value_ = ValueToTupleValue(value);
 
-    auto result_set = new TupleSet();
-    auto result_schema = new TupleSchema();
     return SUCCESS;
 }
 
@@ -210,8 +210,14 @@ void AggregationNode::finish() {
     result_set->set_schema(*result_schema);
 }
 
-TupleSet* AggregationNode::get_result_tuple() {
-    return result_set;
+void AggregationNode::get_result_tuple(TupleSet& tuples) {
+    tuples.clear();
+    tuples.set_schema(*result_schema);
+    for (int i = 0; i < result_set->size(); ++i) {
+        auto item = result_set->get(i);
+        tuples.add(std::move(item));
+    }
+    return;
 }
 
 RC CrossJoinNode::init(TupleSet *left_child, TupleSet *right_child) {

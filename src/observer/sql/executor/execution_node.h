@@ -52,12 +52,16 @@ private:
 
 class AggregationNode : public ExecutionNode {
 public:
-    explicit AggregationNode(AGG_T type) : type_(type) {}
+    AggregationNode() {
+      auto result_set = new TupleSet();
+      auto result_schema = new TupleSchema();
+    }
     ~AggregationNode();
 
     RC init(TupleSchema && tuple_schema,
                 std::string &&table_name,
                 const char *attr_name,
+                AGG_T type,
                 int need_table_name = 0,
                 Value* value = nullptr,
                 int need_all = 0
@@ -65,7 +69,7 @@ public:
 
     RC execute(TupleSet &tuple_set) override;
     void finish();
-    TupleSet * get_result_tuple();
+    void get_result_tuple(TupleSet& tuples);
 
 private:
     int need_table_name_;
