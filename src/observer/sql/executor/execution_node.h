@@ -80,6 +80,7 @@ private:
     std::string table_name_;
     const char *attr_name_;
 
+    Tuple tuple;
     TupleSet *result_set;
     TupleSchema *result_schema;
 };

@@ -71,7 +71,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             count = tuple_set.size();
             res = Tuple();
             res.add(count);
-            result_set->add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_MAX: {
@@ -99,7 +99,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             }
-            result_set->add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_MIN: {
@@ -127,7 +127,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             }
-            result_set->add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_AVG: {
@@ -172,7 +172,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                     }
                 }
             }
-            result_set->add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_NONE: {
@@ -208,6 +208,7 @@ AggregationNode::~AggregationNode() {
 }
 
 void AggregationNode::finish() {
+    result_set->add(std::move(tuple));
     result_set->set_schema(*result_schema);
 }
 

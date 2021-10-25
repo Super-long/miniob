@@ -383,6 +383,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           }
       }
     }
+    agg_node->finish();
     agg_node->get_result_tuple(result_tupleset);
   }
   end_trx_if_need(session, trx, true);
