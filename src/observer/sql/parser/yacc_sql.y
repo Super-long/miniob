@@ -16,6 +16,7 @@ typedef struct ParserContext {
   size_t condition_length;
   size_t from_length;
   size_t value_length;
+  size_t aggregations_length;
   Value values[MAX_NUM];
   Condition conditions[MAX_NUM];
   CompOp comp;
@@ -41,6 +42,7 @@ void yyerror(yyscan_t scanner, const char *str)
   context->ssql->flag = SCF_ERROR;
   context->condition_length = 0;
   context->from_length = 0;
+  context->aggregations_length = 0;
   context->select_length = 0;
   context->value_length = 0;
   context->ssql->sstr.insertion.values_num = 0;
@@ -378,25 +380,24 @@ select_attr:
       relation_attr_init(&attr, $1, "*");
       selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 	}
-    // 1.1  1  "1"  * attr
     | COUNT LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_COUNT;
     }
     | MAX LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_MAX;
     }
     | MIN LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_MIN;
     }
     | AVG LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_AVG;
     }
   | COUNT LBRACE ID DOT ID RBRACE agg_list {
@@ -475,22 +476,22 @@ agg_list:
     /* empty */
     | COMMA COUNT LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_COUNT;
     }
     | COMMA MAX LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_MAX;
     }
     | COMMA MIN LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_MIN;
     }
     | COMMA AVG LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
+      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
       agg_info->agg_type = AGG_AVG;
     }
   | COMMA COUNT LBRACE ID DOT ID RBRACE agg_list {
@@ -533,7 +534,7 @@ agg_list:
       ainfo.need_table_name = 1;
       selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
     }
-  | COMMA COUNT LBRACE ID DOT STAR RBRACE agg_list {
+  | COMMA COUNT LBRACE ID DOT STAR RBRACE agg_list  {
 			RelAttr attr;
 			relation_attr_init(&attr, $4, "*");
 			AggInfo ainfo;
@@ -548,7 +549,8 @@ agg_value:
     //特殊的 "*"
     STAR {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
+      CONTEXT->aggregations_length++;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->need_all = 1;
       agg_info->agg_attr.attribute_name = strdup("*");
       selection->attributes[selection->attr_num++] = agg_info->agg_attr;
@@ -556,20 +558,23 @@ agg_value:
     // 属性名
     | ID {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
+      CONTEXT->aggregations_length++;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->agg_attr.attribute_name = strdup($1);
       selection->attributes[selection->attr_num++] = agg_info->agg_attr;
     }
     // 下面都是常量
     | NUMBER {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
+      CONTEXT->aggregations_length++;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->is_constant = 1;
   		value_init_integer(&agg_info->value, $1);
 		}
     | FLOAT {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
+      CONTEXT->aggregations_length++;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->is_constant = 1;
   		value_init_float(&agg_info->value, $1);
 		}

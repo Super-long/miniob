@@ -204,6 +204,7 @@ RC AggregationNode::init(TupleSchema && tuple_schema,
 AggregationNode::~AggregationNode() {
     delete result_set;
     delete result_schema;
+    delete value_;
 }
 
 void AggregationNode::finish() {
@@ -214,8 +215,7 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
     tuples.clear();
     tuples.set_schema(*result_schema);
     for (int i = 0; i < result_set->size(); ++i) {
-        auto item = result_set->get(i);
-        tuples.add(std::move(item));
+        tuples.add(const_cast<Tuple &&>(result_set->get(i)));
     }
     return;
 }

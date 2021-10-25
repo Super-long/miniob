@@ -53,8 +53,8 @@ private:
 class AggregationNode : public ExecutionNode {
 public:
     AggregationNode() {
-      auto result_set = new TupleSet();
-      auto result_schema = new TupleSchema();
+      result_set = new TupleSet;
+      result_schema = new TupleSchema;
     }
     ~AggregationNode();
 
