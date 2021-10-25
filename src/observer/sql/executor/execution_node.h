@@ -53,7 +53,7 @@ private:
 class AggregationNode : public ExecutionNode {
 public:
     explicit AggregationNode(AGG_T type) : type_(type) {}
-    ~AggregationNode() override = default;
+    ~AggregationNode();
 
     RC init(TupleSchema && tuple_schema,
                 std::string &&table_name,
@@ -64,6 +64,9 @@ public:
     );
 
     RC execute(TupleSet &tuple_set) override;
+    void finish();
+    TupleSet * get_result_tuple();
+
 private:
     int need_table_name_;
     int need_all_;
@@ -72,6 +75,9 @@ private:
     AGG_T type_;
     std::string table_name_;
     const char *attr_name_;
+
+    TupleSet *result_set;
+    TupleSchema *result_schema;
 };
 
 class CrossJoinNode : public ExecutionNode {

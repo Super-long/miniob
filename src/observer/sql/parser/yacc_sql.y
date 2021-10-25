@@ -381,22 +381,22 @@ select_attr:
     // 1.1  1  "1"  * attr
     | COUNT LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->agg_num++];
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->agg_type = AGG_COUNT;
     }
     | MAX LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->agg_num++];
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->agg_type = AGG_MAX;
     }
     | MIN LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->agg_num++];
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->agg_type = AGG_MIN;
     }
     | AVG LBRACE agg_value RBRACE agg_list {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[selection->agg_num++];
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
       agg_info->agg_type = AGG_AVG;
     }
   | COUNT LBRACE ID DOT ID RBRACE agg_list {
@@ -562,12 +562,14 @@ agg_value:
     }
     // 下面都是常量
     | NUMBER {
-      AggInfo *agg_info = &CONTEXT->ssql->sstr.selection.aggregations[selection->aggregation_num];
+      Selects *selection = &CONTEXT->ssql->sstr.selection;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
       agg_info->is_constant = 1;
   		value_init_integer(&agg_info->value, $1);
 		}
     | FLOAT {
-      AggInfo *agg_info = &CONTEXT->ssql->sstr.selection.aggregations[selection->aggregation_num];
+      Selects *selection = &CONTEXT->ssql->sstr.selection;
+      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num];
       agg_info->is_constant = 1;
   		value_init_float(&agg_info->value, $1);
 		}

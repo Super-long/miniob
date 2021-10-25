@@ -340,44 +340,50 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // 2). 如果既有count(*),又存在其他属性的话，需要的只是此属性和where条件中的值，但是我们取所有行也没有错
   // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
   // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
-  auto agg_info = selects.aggregation;
-  if (agg_info.agg_type != AGG_NONE) {
-      auto *agg_node = new AggregationNode(agg_info.agg_type);
-      Value *value = nullptr;
-      if (agg_info.is_constant) {
-        value = &agg_info.value;
-      }
+  auto agg_info = selects.aggregations;
 
-      if (selects.relation_num <= 0) {
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return INVALID_ARGUMENT;
-      }
+  for (int i = 0; i < selects.aggregation_num; ++i) {
+    auto agg_item = agg_info[i];
 
-      const char *table_name = selects.aggregation.agg_attr.relation_name;
-      auto *attr_name = agg_info.agg_attr.attribute_name;
-      std::stringstream output;
-      result_tupleset.get_schema().print(output);
-      LOG_DEBUG("aggregation schema : %s", output.str().c_str());
+    if (agg_item.agg_type != AGG_NONE) {
+        auto *agg_node = new AggregationNode(agg_item.agg_type);
+        Value *value = nullptr;
+        if (agg_item.is_constant) {
+          value = &agg_item.value;
+        }
 
-      if(tuple_sets.size() > 1) {
-        // 多表的情况下需要显示表名
-        LOG_DEBUG("mutli: tablename{%s}, attrname{%s} need_table_name{%d} ", table_name, attr_name, agg_info.need_table_name);
-        agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name, 1, value, agg_info.need_all);
-      } else {
-        LOG_DEBUG("single: tablename{%s} attrname{%s} need_table_name{%d} agg_info.need_all{%d}", table_name, attr_name, agg_info.need_table_name, agg_info.need_all);
-        agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name, agg_info.need_table_name, value, agg_info.need_all);
-      }
-      LOG_DEBUG("execute select node");
-      rc = agg_node->execute(result_tupleset);
-      LOG_DEBUG("result_tupleset size : %d", result_tupleset.size());
-      if (rc != SUCCESS) {
-          delete agg_node;
-          end_trx_if_need(session, trx, false);
-          return rc;
-      }
-      end_trx_if_need(session, trx, true);
+        if (selects.relation_num <= 0) {
+            delete agg_node;
+            end_trx_if_need(session, trx, false);
+            return INVALID_ARGUMENT;
+        }
+
+        const char *table_name = agg_item.agg_attr.relation_name;
+        auto *attr_name = agg_item.agg_attr.attribute_name;
+        std::stringstream output;
+        result_tupleset.get_schema().print(output);
+        LOG_DEBUG("aggregation schema : %s", output.str().c_str());
+
+        if(tuple_sets.size() > 1) {
+          // 多表的情况下需要显示表名
+          LOG_DEBUG("mutli: tablename{%s}, attrname{%s} need_table_name{%d} ", table_name, attr_name, agg_item.need_table_name);
+          agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name, 1, value, agg_item.need_all);
+        } else {
+          LOG_DEBUG("single: tablename{%s} attrname{%s} need_table_name{%d} agg_info.need_all{%d}", selects.relations[0], attr_name, agg_item.need_table_name, agg_item.need_all);
+          agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), selects.relations[0], attr_name, agg_item.need_table_name, value, agg_item.need_all);
+        }
+        LOG_DEBUG("execute select node");
+        rc = agg_node->execute(result_tupleset);
+        LOG_DEBUG("result_tupleset size : %d", result_tupleset.size());
+        if (rc != SUCCESS) {
+            delete agg_node;
+            end_trx_if_need(session, trx, false);
+            return rc;
+        }
+    }
   }
+
+  end_trx_if_need(session, trx, true);
 
   // step5: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
   if(tuple_sets.size() > 1){

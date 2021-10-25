@@ -50,8 +50,6 @@ RC SelectExeNode::execute(TupleSet &tuple_set) {
 }
 
 RC AggregationNode::execute(TupleSet &tuple_set) {
-    auto result_set = new TupleSet();
-    auto result_schema = new TupleSchema();
     std::string field_name;
     Tuple res;
     int max_index, min_index;
@@ -71,12 +69,9 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             LOG_DEBUG("agg count field display {%s}", field_name.c_str());
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
-            result_set->set_schema(*result_schema);
             res = Tuple();
             res.add(count);
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            result_set->add(std::move(res));
             break;
         }
         case AGG_T::AGG_MAX: {
@@ -84,7 +79,6 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "max(" + (need_table_name_? table_name_ + "." :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -105,16 +99,13 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            result_set->add(std::move(res));
             break;
         }
         case AGG_T::AGG_MIN: {
             field_name = "min(" + (need_table_name_? table_name_ + "." :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -136,9 +127,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            result_set->add(std::move(res));
             break;
         }
         case AGG_T::AGG_AVG: {
@@ -146,7 +135,6 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "avg(" + (need_table_name_? table_name_ + "." :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(FLOATS, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -184,9 +172,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                     }
                 }
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            result_set->add(std::move(res));
             break;
         }
         case AGG_T::AGG_NONE: {
@@ -209,7 +195,23 @@ RC AggregationNode::init(TupleSchema && tuple_schema,
     need_table_name_ = need_table_name;
     need_all_ = need_all;
     value_ = ValueToTupleValue(value);
+
+    auto result_set = new TupleSet();
+    auto result_schema = new TupleSchema();
     return SUCCESS;
+}
+
+AggregationNode::~AggregationNode() {
+    delete result_set;
+    delete result_schema;
+}
+
+void AggregationNode::finish() {
+    result_set->set_schema(*result_schema);
+}
+
+TupleSet* AggregationNode::get_result_tuple() {
+    return result_set;
 }
 
 RC CrossJoinNode::init(TupleSet *left_child, TupleSet *right_child) {
