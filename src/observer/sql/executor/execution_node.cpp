@@ -68,6 +68,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         case AGG_T::AGG_COUNT: {
             field_name = "count(" + (need_table_name_? table_name_ + "." :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
+            LOG_DEBUG("agg count field display {%s}", field_name.c_str());
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
             result_set->set_schema(*result_schema);
@@ -127,6 +128,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 return INVALID_ARGUMENT;
             } else {
                 min_index = 0;
+                LOG_DEBUG("tuple_set.tuples().size() -> {%d}", tuple_set.tuples().size());
                 for (int i = 1; i < tuple_set.tuples().size(); i++) {
                     if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
                         min_index = i;
@@ -197,8 +199,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
 RC AggregationNode::init(TupleSchema && tuple_schema,
             std::string &&table_name,
             const char *attr_name,
-            Value* value,
             int need_table_name,
+            Value* value,
             int need_all)
 {
     tuple_schema_ = tuple_schema;

@@ -280,7 +280,11 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
     TupleSet result_set;
     for (int i = tuple_sets.size()-2; i >=0; i--) {
+        LOG_DEBUG("left_set.size() -> {%d}", left_set.size());
         auto right_set = std::move(tuple_sets.at(i));
+        if(right_set.size() == 0) {
+          continue;
+        }
         auto *cross_join_node = new CrossJoinNode();
         cross_join_node->init(&left_set, &right_set);
         cross_join_node->execute(result_set);
@@ -339,6 +343,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   auto agg_info = selects.aggregation;
   if (agg_info.agg_type != AGG_NONE) {
       auto *agg_node = new AggregationNode(agg_info.agg_type);
+      Value *value = nullptr;
+      if (agg_info.is_constant) {
+        value = &agg_info.value;
+      }
 
       if (selects.relation_num <= 0) {
           delete agg_node;
@@ -346,12 +354,23 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           return INVALID_ARGUMENT;
       }
 
-      // agg补充完以后需要改下init相关的函数
-      const char *table_name = selects.relations[0];
+      const char *table_name = selects.aggregation.agg_attr.relation_name;
       auto *attr_name = agg_info.agg_attr.attribute_name;
+      std::stringstream output;
+      result_tupleset.get_schema().print(output);
+      LOG_DEBUG("aggregation schema : %s", output.str().c_str());
 
-      agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name);
+      if(tuple_sets.size() > 1) {
+        // 多表的情况下需要显示表名
+        LOG_DEBUG("mutli: tablename{%s}, attrname{%s} need_table_name{%d} ", table_name, attr_name, agg_info.need_table_name);
+        agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name, 1, value, agg_info.need_all);
+      } else {
+        LOG_DEBUG("single: tablename{%s} attrname{%s} need_table_name{%d} agg_info.need_all{%d}", table_name, attr_name, agg_info.need_table_name, agg_info.need_all);
+        agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), table_name, attr_name, agg_info.need_table_name, value, agg_info.need_all);
+      }
+      LOG_DEBUG("execute select node");
       rc = agg_node->execute(result_tupleset);
+      LOG_DEBUG("result_tupleset size : %d", result_tupleset.size());
       if (rc != SUCCESS) {
           delete agg_node;
           end_trx_if_need(session, trx, false);

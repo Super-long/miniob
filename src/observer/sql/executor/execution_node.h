@@ -58,8 +58,8 @@ public:
     RC init(TupleSchema && tuple_schema,
                 std::string &&table_name,
                 const char *attr_name,
-                Value* value = nullptr,
                 int need_table_name = 0,
+                Value* value = nullptr,
                 int need_all = 0
     );
 
