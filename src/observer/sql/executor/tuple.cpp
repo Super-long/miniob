@@ -73,7 +73,7 @@ void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
   for (int i = 0; i < field_num; i++) {
     const FieldMeta *field_meta = table_meta.field(i);
     if (field_meta->visible()) {
-      schema.add(field_meta->type(), table_name, field_meta->name());
+      schema.add_if_not_exists(field_meta->type(), table_name, field_meta->name(), false);
     }
   }
 }
@@ -161,11 +161,15 @@ void TupleSchema::multi_print(std::ostream &os) const {
 
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
-    os << iter->table_name() << ".";
+    // 防止多表聚合时出现的额外"."，原因时table_name是空的
+    if (static_cast<std::string>(fields_.back().table_name()) != "") {
+      os << iter->table_name() << ".";
+    }
     os << iter->field_name() << " | ";
   }
-
-  os << fields_.back().table_name() << ".";
+  if (static_cast<std::string>(fields_.back().table_name()) != "") {
+    os << fields_.back().table_name() << ".";
+  }
   os << fields_.back().field_name() << std::endl;
 }
 

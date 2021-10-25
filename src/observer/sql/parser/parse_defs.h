@@ -85,7 +85,8 @@ typedef struct {
   char *    relations[MAX_NUM];     // relations in From clause
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
-  AggInfo   aggregation;            // infos for aggregation
+  size_t    aggregation_num;        // Length of aggregation in Agg clause
+  AggInfo   aggregations[MAX_NUM];  // infos for aggregations
 } Selects;
 
 

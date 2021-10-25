@@ -50,8 +50,6 @@ RC SelectExeNode::execute(TupleSet &tuple_set) {
 }
 
 RC AggregationNode::execute(TupleSet &tuple_set) {
-    auto result_set = new TupleSet();
-    auto result_schema = new TupleSchema();
     std::string field_name;
     Tuple res;
     int max_index, min_index;
@@ -60,30 +58,27 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     AttrType attr_type;
 
     if (attr_name_!= nullptr && !need_all_) {
-      attr_index = tuple_schema_.index_of_field(table_name_.c_str(), attr_name_);
+      attr_index = tuple_schema_.index_of_field(table_name_, attr_name_);
       attr_type  = tuple_schema_.field(attr_index).type();
     }
 
     switch (type_) {
         case AGG_T::AGG_COUNT: {
-            field_name = "count(" + (need_table_name_? table_name_ + "." :"") +
+            field_name = "count(" + (need_table_name_? table_name_? std::string(table_name_)+ ".":std::string("") :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
+            LOG_DEBUG("agg count field display {%s}", field_name.c_str());
             result_schema->add(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
-            result_set->set_schema(*result_schema);
             res = Tuple();
             res.add(count);
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_MAX: {
             /* assert !need_all */
-            field_name = "max(" + (need_table_name_? table_name_ + "." :"") +
+            field_name = "max(" + (need_table_name_? table_name_? std::string(table_name_)+ ".":std::string("")  :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -104,16 +99,13 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_MIN: {
-            field_name = "min(" + (need_table_name_? table_name_ + "." :"") +
+            field_name = "min(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("") :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -127,6 +119,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 return INVALID_ARGUMENT;
             } else {
                 min_index = 0;
+                LOG_DEBUG("tuple_set.tuples().size() -> {%d}", tuple_set.tuples().size());
                 for (int i = 1; i < tuple_set.tuples().size(); i++) {
                     if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
                         min_index = i;
@@ -134,17 +127,14 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 }
                 res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_AVG: {
             // only support for int / float
-            field_name = "avg(" + (need_table_name_? table_name_ + "." :"") +
+            field_name = "avg(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("")  :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(FLOATS, "", field_name.c_str());
-            result_set->set_schema(*result_schema);
             if (tuple_set.is_empty()) {
                 tuple_set.clear();
                 tuple_set.set_schema(result_set->get_schema());
@@ -182,9 +172,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                     }
                 }
             }
-            tuple_set.clear();
-            tuple_set.set_schema(result_set->get_schema());
-            tuple_set.add(std::move(res));
+            tuple.add(res.get_pointer(0));
             break;
         }
         case AGG_T::AGG_NONE: {
@@ -195,19 +183,42 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
 }
 
 RC AggregationNode::init(TupleSchema && tuple_schema,
-            std::string &&table_name,
+            const char *table_name,
             const char *attr_name,
-            Value* value,
+            AGG_T type,
             int need_table_name,
+            Value* value,
             int need_all)
 {
     tuple_schema_ = tuple_schema;
     table_name_ = table_name;
     attr_name_ = attr_name;
+    type_ = type;
     need_table_name_ = need_table_name;
     need_all_ = need_all;
     value_ = ValueToTupleValue(value);
+
     return SUCCESS;
+}
+
+AggregationNode::~AggregationNode() {
+    delete result_set;
+    delete result_schema;
+    delete value_;
+}
+
+void AggregationNode::finish() {
+    result_set->add(std::move(tuple));
+    result_set->set_schema(*result_schema);
+}
+
+void AggregationNode::get_result_tuple(TupleSet& tuples) {
+    tuples.clear();
+    tuples.set_schema(*result_schema);
+    for (int i = 0; i < result_set->size(); ++i) {
+        tuples.add(const_cast<Tuple &&>(result_set->get(i)));
+    }
+    return;
 }
 
 RC CrossJoinNode::init(TupleSet *left_child, TupleSet *right_child) {
