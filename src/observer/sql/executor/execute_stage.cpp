@@ -383,6 +383,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           }
       }
     }
+    agg_node->finish();
     agg_node->get_result_tuple(result_tupleset);
   }
   end_trx_if_need(session, trx, true);
@@ -457,12 +458,12 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         is_star = true;
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
-        if (selects.relation_num == 1) {
+        if (selects.relation_num == 1 && selects.aggregation_num == 0) {
             if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
                 return RC::INVALID_ARGUMENT;
             }
+            break; // 没有校验，给出* 之后，再写字段的错误
         }
-        break; // 没有校验，给出* 之后，再写字段的错误
       } else {
         // 列出这张表相关字段
         LOG_DEBUG("attr.attribute_name {%s}.", attr.attribute_name);

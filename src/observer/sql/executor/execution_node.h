@@ -59,7 +59,7 @@ public:
     ~AggregationNode();
 
     RC init(TupleSchema && tuple_schema,
-                std::string &&table_name,
+                const char *table_name,
                 const char *attr_name,
                 AGG_T type,
                 int need_table_name = 0,
@@ -77,9 +77,10 @@ private:
     TupleValue *value_; /* [TODO] (adlternative) 可能是 之后是 attr_name + value[] 比如 max(id,1,3,4) */
     TupleSchema  tuple_schema_;
     AGG_T type_;
-    std::string table_name_;
+    const char *table_name_;
     const char *attr_name_;
 
+    Tuple tuple;
     TupleSet *result_set;
     TupleSchema *result_schema;
 };
