@@ -23,8 +23,8 @@ See the Mulan PSL v2 for more details. */
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include <unistd.h>
 #include <termios.h>
+#include <unistd.h>
 
 #include "common/defs.h"
 #include "common/lang/string.h"
@@ -35,8 +35,7 @@ See the Mulan PSL v2 for more details. */
 using namespace common;
 
 bool is_exit_command(const char *cmd) {
-  return 0 == strncasecmp("exit", cmd, 4) ||
-         0 == strncasecmp("bye", cmd, 3);
+  return 0 == strncasecmp("exit", cmd, 4) || 0 == strncasecmp("bye", cmd, 3);
 }
 
 int init_unix_sock(const char *unix_sock_path) {
@@ -52,8 +51,9 @@ int init_unix_sock(const char *unix_sock_path) {
   snprintf(sockaddr.sun_path, sizeof(sockaddr.sun_path), "%s", unix_sock_path);
 
   if (connect(sockfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr)) < 0) {
-    fprintf(stderr, "failed to connect to server. unix socket path '%s'. error %s",
-        sockaddr.sun_path, strerror(errno));
+    fprintf(stderr,
+            "failed to connect to server. unix socket path '%s'. error %s",
+            sockaddr.sun_path, strerror(errno));
     close(sockfd);
     return -1;
   }
@@ -65,13 +65,15 @@ int init_tcp_sock(const char *server_host, int server_port) {
   struct sockaddr_in serv_addr;
 
   if ((host = gethostbyname(server_host)) == NULL) {
-    fprintf(stderr, "gethostbyname failed. errmsg=%d:%s\n", errno, strerror(errno));
+    fprintf(stderr, "gethostbyname failed. errmsg=%d:%s\n", errno,
+            strerror(errno));
     return -1;
   }
 
   int sockfd;
   if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    fprintf(stderr, "create socket error. errmsg=%d:%s\n", errno, strerror(errno));
+    fprintf(stderr, "create socket error. errmsg=%d:%s\n", errno,
+            strerror(errno));
     return -1;
   }
 
@@ -82,7 +84,8 @@ int init_tcp_sock(const char *server_host, int server_port) {
 
   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr)) ==
       -1) {
-    fprintf(stderr, "Failed to connect. errmsg=%d:%s\n", errno, strerror(errno));
+    fprintf(stderr, "Failed to connect. errmsg=%d:%s\n", errno,
+            strerror(errno));
     close(sockfd);
     return -1;
   }
@@ -104,7 +107,7 @@ int set_terminal_noncanonical() {
 
   struct termios new_attr = old_termios;
   new_attr.c_lflag &= ~ICANON;
-	new_attr.c_cc[VERASE] = '\b';
+  new_attr.c_cc[VERASE] = '\b';
   ret = tcsetattr(fd, TCSANOW, &new_attr);
   if (ret < 0) {
     printf("Failed to set tc attr. error=%s\n", strerror(errno));
@@ -113,10 +116,222 @@ int set_terminal_noncanonical() {
   return 0;
 }
 
+#define t(input, expect, panic)                                                \
+  do {                                                                         \
+    if ((send_bytes = write(sockfd, input, strlen(input) + 1)) == -1) {        \
+      fprintf(stderr, "send error: %d:%s \n", errno, strerror(errno));         \
+      return 1;                                                                \
+    }                                                                          \
+    memset(recv_buf, 0, sizeof(recv_buf));                                     \
+    while ((len = recv(sockfd, recv_buf, MAX_MEM_BUFFER_SIZE, 0)) > 0) {       \
+      bool msg_end = false;                                                    \
+      for (int i = 0; i < len; i++) {                                          \
+        if (0 == recv_buf[i]) {                                                \
+          msg_end = true;                                                      \
+          break;                                                               \
+        }                                                                      \
+        output.push_back(recv_buf[i]);                                         \
+      }                                                                        \
+      if (msg_end) {                                                           \
+        break;                                                                 \
+      }                                                                        \
+      memset(recv_buf, 0, MAX_MEM_BUFFER_SIZE);                                \
+    }                                                                          \
+    if (output != expect) {                                                    \
+      std::cout << "input: " << input << std::endl;                            \
+      std::cout << "expect:\n" << expect << std::endl;                         \
+      std::cout << "result:\n" << output << std::endl;                         \
+      if (panic)                                                               \
+        return 1;                                                              \
+    } else {                                                                   \
+      std::cout << "ok!" << std::endl;                                         \
+    }                                                                          \
+    output.clear();                                                            \
+    if (len < 0) {                                                             \
+      fprintf(stderr, "Connection was broken: %s\n", strerror(errno));         \
+      return 1;                                                                \
+    }                                                                          \
+    if (0 == len) {                                                            \
+      printf("Connection has been closed\n");                                  \
+      return 0;                                                                \
+    }                                                                          \
+  } while (0)
+
+int run_test(int sockfd) {
+  char recv_buf[MAX_MEM_BUFFER_SIZE];
+  int len;
+  std::string output;
+  int send_bytes;
+
+  // Example
+  t("select * from test1;",
+    "in1 | ch1 | fl1 | da1\n"
+    "1 | a | 1.1 | 2000-10-01\n"
+    "2 | b | 2.2 | 2000-10-02\n"
+    "3 | c | 3.3 | 2000-10-03\n"
+    "4 | d | 4.4 | 2000-10-04\n"
+    "5 | e | 5.5 | 2000-10-05\n",
+    true);
+  t("select * from test2;",
+    "in2 | ch2 | fl2 | da2\n"
+    "1 | a | 1.1 | 2000-10-01\n"
+    "2 | b | 2.2 | 2000-10-02\n"
+    "3 | c | 3.3 | 2000-10-03\n"
+    "4 | d | 4.4 | 2000-10-04\n"
+    "5 | e | 5.5 | 2000-10-05\n",
+    true);
+  t("select count(in1) from test1;",
+    "count(in1)\n"
+    "5\n",
+    true);
+  t("select count(fl1) from test1;",
+    "count(fl1)\n"
+    "5\n",
+    true);
+  t("select count(da1) from test1;",
+    "count(da1)\n"
+    "5\n",
+    true);
+  t("select count(1.1) from test1;",
+    "count(1.1)\n"
+    "5\n",
+    true);
+  t("select count(1) from test1;",
+    "count(1)\n"
+    "5\n",
+    true);
+  t("select count(*) from test1;",
+    "count(*)\n"
+    "5\n",
+    true);
+  t("select count(test1.in1) from test1;",
+    "count(test1.in1)\n"
+    "5\n",
+    true);
+  t("select count(test1.*) from test1;",
+    "count(test1.*)\n"
+    "5\n",
+    true);
+  t("select max(in1) from test1;",
+    "max(in1)\n"
+    "5\n",
+    true);
+  t("select max(fl1) from test1;",
+    "max(fl1)\n"
+    "5.5\n",
+    true);
+  t("select max(da1) from test1;",
+    "max(da1)\n"
+    "2000-10-05\n",
+    true);
+  t("select max(1.1) from test1;",
+    "max(1.1)\n"
+    "1.1\n",
+    true);
+  t("select max(1) from test1;",
+    "max(1)\n"
+    "1\n",
+    true);
+  t("select max(test1.in1) from test1;",
+    "max(test1.in1)\n"
+    "5\n",
+    true);
+
+  t("select min(in1) from test1;",
+    "min(in1)\n"
+    "1\n",
+    true);
+  t("select min(fl1) from test1;",
+    "min(fl1)\n"
+    "1.1\n",
+    true);
+  t("select min(da1) from test1;",
+    "min(da1)\n"
+    "2000-10-01\n",
+    true);
+  t("select min(1.1) from test1;",
+    "min(1.1)\n"
+    "1.1\n",
+    true);
+  t("select min(1) from test1;",
+    "min(1)\n"
+    "1\n",
+    true);
+  t("select min(test1.in1) from test1;",
+    "min(test1.in1)\n"
+    "1\n",
+    true);
+
+  t("select min(in1), max(fl1) from test1;",
+    "min(in1) | max(fl1)\n"
+    "1 | 5.5\n",
+    true);
+
+  t("select min(test1.in1), max(test1.in1), avg(test1.fl1) from test1;",
+    "min(test1.in1) | max(test1.in1) | avg(test1.fl1)\n"
+    "1 | 5 | 3.3\n",
+    false);
+
+  t("select count(1), count(1.1), min(test1.in1), max(test1.in1), "
+    "avg(test1.fl1) from test1;",
+    "count(1) | count(1.1) | min(test1.in1) | max(test1.in1) | avg(test1.fl1)\n"
+    "5 | 5 | 1 | 5 | 3.3\n",
+    false);
+  t("select count(in1), max(in1) from test1;",
+    "count(in1) | max(in1)\n"
+    "5 | 5\n",
+    true);
+  t("select count(*), min(in1) from test1;",
+    "count(*) | min(in1)\n"
+    "5 | 1\n",
+    false);
+  t("select min(in1), count(*) from test1;",
+    "min(in1) | count(*)\n"
+    "1 | 5\n",
+    true);
+  t("select count(*), max(test1.in1) from test1, test2 where test1.in1 < "
+    "test2.in2;",
+    "count(*) | max(test1.in1)\n"
+    "10 | 4\n",
+    true);
+  t("select count(test1.in1),max(test2.fl2) from test1, test2 where test1.in1 "
+    "< test2.in2;",
+    "count(test1.in1) | max(test2.fl2)\n"
+    "10 | 5.5\n",
+    false);
+  t("select min(test1.in1), max(test2.fl2) from test1, test2;",
+    "min(test1.in1) | max(test2.fl2)\n"
+    "1 | 1.1\n",
+    false);
+  t("select count(in1),max(fl1),avg(fl1),count(*) from test1;",
+    "count(in1) | max(fl1) | avg(fl1) | count(*)\n"
+    "5 | 5.5 | 3.3 | 5\n",
+    false);
+  t(" select count(*),count(in1),max(fl1),avg(fl1) from test1;",
+    "count(*) | count(in1) | max(fl1) | avg(fl1)\n"
+    "5 | 5 | 5.5 | 3.3\n",
+    false);
+  t(" select count(*), max(in1), count(*) from test1;",
+    "count(*) | max(in1) | count(*)\n"
+    "5 | 5 | 5\n",
+    false);
+  t(" select max(in1),max(in1) from test1;",
+    "max(in1) | max(in1)\n"
+    "5 | 5\n",
+    false);
+  t(" select max(1.1),count(*) from test1;",
+    "max(1.1) | count(*)\n"
+    "1.1 | 5\n",
+    false);
+
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   int ret = 0; // set_terminal_noncanonical();
   if (ret < 0) {
-    printf("Warning: failed to set terminal non canonical. Long command may be handled incorrect\n");
+    printf("Warning: failed to set terminal non canonical. Long command may be "
+           "handled incorrect\n");
   }
 
   const char *unix_socket_path = nullptr;
@@ -124,7 +339,8 @@ int main(int argc, char *argv[]) {
   int server_port = PORT_DEFAULT;
   int opt;
   extern char *optarg;
-  while ((opt = getopt(argc, argv, "s:h:p:")) > 0) {
+  bool gtest_mode = false;
+  while ((opt = getopt(argc, argv, "s:h:p:t")) > 0) {
     switch (opt) {
     case 's':
       unix_socket_path = optarg;
@@ -135,12 +351,15 @@ int main(int argc, char *argv[]) {
     case 'h':
       server_host = optarg;
       break;
+    case 't':
+      gtest_mode = true;
+      break;
     }
   }
 
   const char *prompt_str = "miniob > ";
 
-  int sockfd, send_bytes;
+  int sockfd;
   // char send[MAXLINE];
 
   if (unix_socket_path != nullptr) {
@@ -152,7 +371,14 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  if (gtest_mode) {
+    int ret = run_test(sockfd);
+    close(sockfd);
+    return ret;
+  }
+
   char send_buf[MAX_MEM_BUFFER_SIZE];
+  int send_bytes;
   // char buf[MAXDATASIZE];
 
   fputs(prompt_str, stdout);
@@ -173,13 +399,13 @@ int main(int argc, char *argv[]) {
     memset(send_buf, 0, sizeof(send_buf));
 
     int len = 0;
-    while((len = recv(sockfd, send_buf, MAX_MEM_BUFFER_SIZE, 0)) > 0){  
+    while ((len = recv(sockfd, send_buf, MAX_MEM_BUFFER_SIZE, 0)) > 0) {
       bool msg_end = false;
       for (int i = 0; i < len; i++) {
         if (0 == send_buf[i]) {
           msg_end = true;
           break;
-		    }
+        }
         printf("%c", send_buf[i]);
       }
       if (msg_end) {
