@@ -59,9 +59,8 @@ RC Trx::insert_record(Table *table, Record *record) {
   }
 
   start_if_not_started();
-
-  // 设置record中trx_field为当前的事务号
-  // set_record_trx_id(table, record, trx_id_, false);
+  // 上个版本这句话是被注释掉的。设置record中trx_field为当前的事务号
+  set_record_trx_id(table, *record, trx_id_, false);
   // 记录到operations中
   insert_operation(table, Operation::Type::INSERT, record->rid);
   return rc;
@@ -84,7 +83,7 @@ RC Trx::delete_record(Table *table, Record *record) {
   return rc;
 }
 
-void Trx::set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const {
+void Trx::set_record_trx_id(Table *table, const Record &record, int32_t trx_id, bool deleted) const {
   const FieldMeta *trx_field = table->table_meta().trx_field();
   int32_t *ptrx_id = (int32_t*)(record.data + trx_field->offset());
   if (deleted) {
