@@ -100,7 +100,7 @@ public:
   void init_trx_info(Table *table, Record &record);
 
 private:
-  void set_record_trx_id(Table *table, Record &record, int32_t trx_id, bool deleted) const;
+  void set_record_trx_id(Table *table, const Record &record, int32_t trx_id, bool deleted) const;
   static void get_record_trx_id(Table *table, const Record &record, int32_t &trx_id, bool &deleted);
 
 private:
