@@ -280,11 +280,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
     TupleSet result_set;
     for (int i = tuple_sets.size()-2; i >=0; i--) {
-        LOG_DEBUG("left_set.size() -> {%d}", left_set.size());
         auto right_set = std::move(tuple_sets.at(i));
-        if(right_set.size() == 0) {
-          continue;
-        }
         auto *cross_join_node = new CrossJoinNode();
         cross_join_node->init(&left_set, &right_set);
         cross_join_node->execute(result_set);
