@@ -77,16 +77,35 @@ typedef struct {
     Value value;
 } AggInfo;
 
+typedef struct {
+  RelAttr order_attr;
+  int reverse;
+} OrderBy;
+
+typedef struct {
+  RelAttr group_attr;
+} GroupBy;
+
+
 // struct of select
 typedef struct {
   size_t    attr_num;               // Length of attrs in Select clause
   RelAttr   attributes[MAX_NUM];    // attrs in Select clause
+
   size_t    relation_num;           // Length of relations in Fro clause
   char *    relations[MAX_NUM];     // relations in From clause
+
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
+
   size_t    aggregation_num;        // Length of aggregation in Agg clause
   AggInfo   aggregations[MAX_NUM];  // infos for aggregations
+
+  size_t    order_num;              // Length of order by
+  OrderBy   orders[MAX_NUM];        // infos for order by
+
+  size_t    group_num;              // Length of group by
+  GroupBy   groups[MAX_NUM];        // infos for group by
 } Selects;
 
 
@@ -222,6 +241,7 @@ void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
 void selects_append_aggregation(Selects *selects, AggInfo *agg_info);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
+void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name);
