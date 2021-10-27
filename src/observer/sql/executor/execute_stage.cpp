@@ -421,6 +421,8 @@ static RC schema_add_field(Table *table, const char *field_name, TupleSchema &sc
 }
 
 static RC schema_add_field_projection(Table *table, const char *field_name, TupleSchema &schema) {
+  if (!field_name)
+    return RC::INVALID_ARGUMENT;
   const FieldMeta *field_meta = table->table_meta().field(field_name);
   if (nullptr == field_meta) {
     LOG_WARN("No such field. %s.%s", table->name(), field_name);
@@ -501,16 +503,18 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     // 现在把数据插进去，最后也要删除多余的这些行
     if ((condition.left_is_attr == 1 || condition.right_is_attr == 1) && !is_star) {
       RC rc;
-      if (match_table(selects, condition.left_attr.relation_name, table_name)) {
+      if (match_table(selects, condition.left_attr.relation_name, table_name) &&
+          condition.left_attr.attribute_name) {
         LOG_DEBUG("lhs schema_add_field : {%s}", condition.left_attr.attribute_name);
-        RC rc = schema_add_field_projection(table, condition.left_attr.attribute_name, schema);
+        rc = schema_add_field_projection(table, condition.left_attr.attribute_name, schema);
         if (rc != RC::SUCCESS) {
           return rc;
         }
       } 
-      if (match_table(selects, condition.right_attr.relation_name, table_name)) {
+      if (match_table(selects, condition.right_attr.relation_name, table_name) &&
+          condition.right_attr.attribute_name) {
         LOG_DEBUG("rhs schema_add_field : {%s}", condition.right_attr.attribute_name);
-        RC rc = schema_add_field_projection(table, condition.right_attr.attribute_name, schema);
+        rc = schema_add_field_projection(table, condition.right_attr.attribute_name, schema);
         if (rc != RC::SUCCESS) {
           return rc;
         }
