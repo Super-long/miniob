@@ -81,9 +81,11 @@
 5. select count(test1.in1) from test1, test2 where test1.fl1 = test2.fl2;                   // y
 6. select count(*) from test1, test2;                                                       // y
 7. select max(test1.in1), count(*), count(*), count(test1.in1),count(*),min(test2.in2) from test1,test2; // y
-
 ---
 
 测试不测的：
 1. select count('2021-10-21') from test1;
 2. select count('asd') from test1;
+
+### Date
+1. select da1 from test1 where da1='2000-10-01';                                              // y
