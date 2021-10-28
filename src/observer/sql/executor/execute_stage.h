@@ -19,6 +19,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse.h"
 #include "rc.h"
 
+#include "session/session.h"
+#include "sql/executor/execution_node.h"
+
+using namespace common;
 class SessionEvent;
 
 class ExecuteStage : public common::Stage {
@@ -39,7 +43,15 @@ protected:
 
   void handle_request(common::StageEvent *event);
   RC do_select(const char *db, Query *sql, SessionEvent *session_event);
+
 protected:
+private:
+  // do_select中的一些辅助函数，为了让整个逻辑更加清楚一点
+  RC create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes);
+  RC create_tuples(Session *session, std::vector<SelectExeNode *> select_nodes, std::vector<TupleSet>& result_tupleset);
+  RC cross_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset);
+  RC execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, bool is_multi);
+
 private:
   Stage *default_storage_stage_ = nullptr;
   Stage *mem_storage_stage_ = nullptr;

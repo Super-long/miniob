@@ -216,18 +216,10 @@ void end_trx_if_need(Session *session, Trx *trx, bool all_right) {
   }
 }
 
-// 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
-// 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
-RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
-
-  RC rc = RC::SUCCESS;
-  Session *session = session_event->get_client()->session;
+RC ExecuteStage::create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes) {
   Trx *trx = session->current_trx();
-  const Selects &selects = sql->sstr.selection;
-  TupleSet result_tupleset;
+  RC rc = RC::SUCCESS;
 
-  // step1:用所有跟这张表关联的condition生成filter，然后生成schema，最后生成最底层的select执行节点
-  std::vector<SelectExeNode *> select_nodes;
   LOG_DEBUG("selects.relation_num [%d]", selects.relation_num);
   for (size_t i = 0; i < selects.relation_num; i++) {
     const char *table_name = selects.relations[i];
@@ -256,9 +248,13 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     end_trx_if_need(session, trx, false);
     return RC::SQL_SYNTAX;
   }
+  return rc;
+}
 
-  // step2:用上面生成的select_node拿到tuples
-  std::vector<TupleSet> tuple_sets;
+RC ExecuteStage::create_tuples(Session *session, std::vector<SelectExeNode *> select_nodes, std::vector<TupleSet>& result_tupleset) {
+  Trx *trx = session->current_trx();
+  RC rc = RC::SUCCESS;
+
   for (SelectExeNode *&node: select_nodes) {
     TupleSet tuple_set;
     rc = node->execute(tuple_set);
@@ -267,14 +263,19 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         delete tmp_node;
       }
       end_trx_if_need(session, trx, false);
-      return rc;
+      return {};
     } else {
-      tuple_sets.push_back(std::move(tuple_set));
+      result_tupleset.push_back(std::move(tuple_set));
     }
   }
+  return rc;
+}
 
-  // step3:多表的情况下进行join操作，生成一份新的tuples
+RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset) {
+  // 搞成vector是为了好改group by
   std::stringstream ss;
+  RC rc = RC::SUCCESS;
+
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
     auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
@@ -325,20 +326,20 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     }
     // 再过滤列，删除projection相关
     left_set.erase_projection();
-    result_tupleset = std::move(left_set);
+    result_tupleset.emplace_back(std::move(left_set));
   } else {
     // 当前只查询一张表，直接返回结果即可
-    result_tupleset = std::move(tuple_sets.front());
+    result_tupleset.emplace_back(std::move(tuple_sets.front()));
   }
+  return rc;
+}
 
-  // step4: aggregation相关，当我们执行过滤以后，如果应该执行agg，理论我们应该在此时持有所有需要的field
-  // 1). 只有一个count(*)的话，需要多表join/单表以后取行数；这种情况我们”可以“需要所有的列
-  // 2). 如果既有count(*),又存在其他属性的话，需要的只是此属性和where条件中的值，但是我们取所有行也没有错
-  // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
-  // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
-  if (selects.aggregation_num > 0) {
+// 每次传一项做aggregation
+RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, bool is_multi) {
+    Trx *trx = session->current_trx();
     auto agg_info = selects.aggregations;
     auto *agg_node = new AggregationNode();
+
     for (int i = 0; i < selects.aggregation_num; ++i) {
       auto agg_item = agg_info[i];
 
@@ -360,7 +361,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
           result_tupleset.get_schema().print(output);
           LOG_DEBUG("aggregation schema : %s", output.str().c_str());
 
-          if(tuple_sets.size() > 1) {
+          if(is_multi) {
             // 多表的情况下需要显示表名
             LOG_DEBUG("mutli: tablename{%s}, attrname{%s} need_table_name{%d} ", table_name, attr_name, agg_item.need_table_name);
             agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), 
@@ -371,25 +372,74 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
               selects.relations[0], attr_name, agg_item.agg_type, agg_item.need_table_name, value, agg_item.need_all);
           }
           LOG_DEBUG("execute select node");
-          rc = agg_node->execute(result_tupleset);
+          RC rc = agg_node->execute(result_tupleset);
           if (rc != SUCCESS) {
               delete agg_node;
-              end_trx_if_need(session, trx, false);
               return rc;
           }
       }
     }
     agg_node->finish();
     agg_node->get_result_tuple(result_tupleset);
+    return RC::SUCCESS;
+}
+
+// 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
+// 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
+RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
+
+  Session *session = session_event->get_client()->session;
+  const Selects &selects = sql->sstr.selection;
+  std::vector<TupleSet> tuple_sets;
+  std::vector<TupleSet> result_tupleset;
+  std::vector<SelectExeNode *> select_nodes;
+
+  RC rc = RC::SUCCESS;
+  Trx *trx = session->current_trx();
+
+  // step1:用所有跟这张表关联的condition生成filter，然后生成schema，最后生成最底层的select执行节点
+  rc = create_schema(session, selects, db, select_nodes);
+  if (rc != RC::SUCCESS) {
+    end_trx_if_need(session, trx, false);
+    return rc;
   }
-  end_trx_if_need(session, trx, true);
+
+  // step2:用上面生成的select_node拿到tuples
+  rc = create_tuples(session, select_nodes, tuple_sets);
+  if (rc != RC::SUCCESS) {
+    end_trx_if_need(session, trx, false);
+    return rc;
+  }
+
+  // step3:多表的情况下进行join操作，生成一份新的tuples，把结果集放到result_tupleset中
+  rc = cross_join(tuple_sets, selects, result_tupleset);
+  if (rc != RC::SUCCESS) {
+    end_trx_if_need(session, trx, false);
+    return rc;
+  }
+
+  // step4: aggregation相关，当我们执行过滤以后，如果应该执行agg，理论我们应该在此时持有所有需要的field
+  // 1). 只有一个count(*)的话，需要多表join/单表以后取行数；这种情况我们”可以“需要所有的列
+  // 2). 如果既有count(*),又存在其他属性的话，需要的只是此属性和where条件中的值，但是我们取所有行也没有错
+  // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
+  // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
+  if (selects.aggregation_num > 0) {
+    for (auto& item : result_tupleset) {
+      rc = execute_aggregation(item, selects, session, tuple_sets.size() > 1);
+      if (rc != RC::SUCCESS) {
+        end_trx_if_need(session, trx, false);
+      }
+    }
+  }
 
   // step5: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
+  // 目前还没写group by，我们认为 result_tupleset 只有一项
+  std::stringstream ss;
   if(tuple_sets.size() > 1){
-    result_tupleset.print(ss, true);
+    result_tupleset.front().print(ss, true);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    result_tupleset.print(ss, false);
+    result_tupleset.front().print(ss, false);
   }
 
   for (SelectExeNode *& tmp_node: select_nodes) {
