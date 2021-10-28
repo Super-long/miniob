@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/time/datetime.h"
 #include <assert.h>
 #include <sstream>
+#include <algorithm>
 
 Tuple::Tuple(const Tuple &other) {
   LOG_PANIC("Copy constructor of tuple is not supported");
@@ -121,7 +122,9 @@ int TupleSchema::index_of_field(const char *table_name, const char *field_name) 
   const int size = fields_.size();
   for (int i = 0; i < size; i++) {
     const TupleField &field = fields_[i];
-    if (0 == strcmp(field.table_name(), table_name) && 0 == strcmp(field.field_name(), field_name)) {
+
+    if (((!table_name) || (0 == strcmp(field.table_name(), table_name)))
+      && 0 == strcmp(field.field_name(), field_name)) {
       return i;
     }
   }
@@ -252,6 +255,29 @@ const std::vector<Tuple> &TupleSet::tuples() const {
 void TupleSet::remove(int index) {
     tuples_.erase(tuples_.begin()+index);
 }
+
+void TupleSet::orderBy(const OrderBy *orders, size_t order_num) {
+    std::sort(tuples_.begin(), tuples_.end(),[&](const Tuple& left, const Tuple& right)->bool {
+      int ret = 0;
+      for (int i = 0; i < order_num; i++) {
+        auto attr_index = schema_.index_of_field(orders[i].order_attr.relation_name, orders[i].order_attr.attribute_name);
+        if (attr_index == -1) {
+          LOG_ERROR("Unexpected %s:%s", orders[i].order_attr.relation_name, orders[i].order_attr.attribute_name);
+        }
+        LOG_INFO("%s %s",left.get(attr_index).to_string().c_str(),right.get(attr_index).to_string().c_str());
+        ret = left.get(attr_index).compare(right.get(attr_index));
+        if (ret) {
+          if (orders[i].reverse) {
+            return ret > 0;
+          } else {
+            return ret < 0;
+          }
+        }
+      }
+      return 0;
+    });
+}
+
 
 void TupleSet::erase_projection() {
   auto schema_fields = schema_.fields();

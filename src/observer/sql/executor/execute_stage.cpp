@@ -432,6 +432,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     }
   }
 
+  result_tupleset.front().orderBy(selects.orders, selects.order_num);
+
+  end_trx_if_need(session, trx, true);
+
   // step5: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
   // 目前还没写group by，我们认为 result_tupleset 只有一项
   std::stringstream ss;

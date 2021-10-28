@@ -150,6 +150,9 @@ public:
   void erase_projection();
 
   void print(std::ostream &os, bool multi) const;
+
+  void orderBy(const OrderBy *orders, size_t order_num);
+
 public:
   const TupleSchema &schema() const {
     return schema_;
