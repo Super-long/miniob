@@ -111,6 +111,14 @@ void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
 }
 
+void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse) {
+  selects_append_attribute(selects, orderby);
+  OrderBy *order = &selects->orders[selects->order_num];
+  order->reverse = reverse;
+  order->order_attr = *orderby;
+  selects->order_num++;
+}
+
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num) {
   assert(condition_num <= sizeof(selects->conditions)/sizeof(selects->conditions[0]));
   for (size_t i = 0; i < condition_num; i++) {

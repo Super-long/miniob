@@ -456,7 +456,9 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         is_star = true;
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
-        if (selects.relation_num == 1 && selects.aggregation_num == 0) {
+        if (selects.relation_num == 1 &&
+            selects.aggregation_num == 0 &&
+            selects.order_num == 0) {
             if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
                 return RC::INVALID_ARGUMENT;
             }

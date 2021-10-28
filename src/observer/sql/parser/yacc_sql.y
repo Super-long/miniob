@@ -109,6 +109,9 @@ ParserContext *get_context(yyscan_t scanner)
         LE
         GE
         NE
+        ORDER
+        BY
+        ASC
 
 %union {
   struct _Attr *attr;
@@ -341,7 +344,7 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where SEMICOLON
+    SELECT select_attr FROM ID rel_list where order_by SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
@@ -358,6 +361,59 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->value_length = 0;
 	}
 	;
+order_by:
+  /*empty*/
+  | ORDER BY order_attr_list {
+  }
+order_attr_list:
+  order_attr {
+  }
+  | order_attr_list COMMA order_attr {
+  }
+order_attr:
+  ID {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 0);
+  }
+  | ID ASC {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 0);
+  }
+  | ID DESC {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 1);
+  }
+  | ID DOT ID {
+			RelAttr attr;
+			relation_attr_init(&attr, $1, $3);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 0);
+  }
+  | ID DOT ID ASC {
+			RelAttr attr;
+			relation_attr_init(&attr, $1, $3);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 0);
+  }
+  | ID DOT ID DESC {
+			RelAttr attr;
+			relation_attr_init(&attr, $1, $3);
+			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 1);
+  }
+  ;
+// group_by:
+//   /*empty*/
+//   | ORDER BY group_attr_list {
+//   }
+//   ;
+// group_attr_list:
+//   /*empty*/
+//   | order_attr_list COMMA order_attr {
+//   }
+//   ;
+// group_attr:
+//   ;
 
 select_attr:
     STAR attr_list {
