@@ -342,9 +342,9 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
 
     for (int i = 0; i < selects.attr_num; ++i) {
       auto attr = attrs[i];
-      AggInfo *agg_item = nullptr;
-
-      // agg_item = attr;
+      if (attr.type != SELECT_ATTR_AGG)
+        continue;
+      AggInfo &agg_item = attr.attr.aggregation;
 
       if (agg_item.agg_type != AGG_NONE) {
           Value *value = nullptr;
@@ -426,7 +426,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // 2). 如果既有count(*),又存在其他属性的话，需要的只是此属性和where条件中的值，但是我们取所有行也没有错
   // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
   // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
-  if (selects.aggregation_num > 0) {
+  if (selects.aggregate_num > 0) {
     for (auto& item : result_tupleset) {
       rc = execute_aggregation(item, selects, session, tuple_sets.size() > 1);
       if (rc != RC::SUCCESS) {
@@ -507,6 +507,8 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
 
   for (int i = selects.attr_num - 1; i >= 0; i--) {
     const RelAttr &attr = selects.attributes[i];
+    
+
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
       LOG_DEBUG("attr.relation_name {%s}.  table_name : {%s}", attr.relation_name, table_name);
       if (0 == strcmp("*", attr.attribute_name)) {
@@ -514,7 +516,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
         if (selects.relation_num == 1 &&
-            selects.aggregation_num == 0 &&
+            selects.aggregate_num == 0 &&
             selects.order_num == 0) {
             if (!(i == selects.attr_num-1 && selects.attr_num ==1)) {
                 return RC::INVALID_ARGUMENT;

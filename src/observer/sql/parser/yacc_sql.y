@@ -452,21 +452,25 @@ agg_attr:
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_COUNT;
+      selection->aggregate_num++;
     }
     | MAX LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MAX;
+      selection->aggregate_num++;
     }
     | MIN LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MIN;
+      selection->aggregate_num++;
     }
     | AVG LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_AVG;
+      selection->aggregate_num++;
     }
     ;
 agg_value:
