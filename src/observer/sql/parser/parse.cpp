@@ -32,8 +32,10 @@ void relation_attr_init(RelAttr *relation_attr, const char *relation_name, const
 }
 
 void relation_attr_destroy(RelAttr *relation_attr) {
-  free(relation_attr->relation_name);
-  free(relation_attr->attribute_name);
+  if (relation_attr->relation_name)
+    free(relation_attr->relation_name);
+  if (relation_attr->attribute_name)
+    free(relation_attr->attribute_name);
   relation_attr->relation_name = nullptr;
   relation_attr->attribute_name = nullptr;
 }
@@ -100,19 +102,24 @@ void attr_info_destroy(AttrInfo *attr_info) {
 }
 
 void selects_init(Selects *selects, ...);
-void selects_append_attribute(Selects *selects, RelAttr *rel_attr) {
-  selects->attributes[selects->attr_num++] = *rel_attr;
+
+void selects_set_attribute(Selects *selects, RelAttr *rel_attr) {
+  SelectAttr *attr = &selects->attributes[selects->attr_num];
+  attr->type = SELECT_ATTR_ATTR;
+  attr->attr.attr = *rel_attr;
 }
-void selects_append_aggregation(Selects *selects, AggInfo *agg_info) {
-  selects->attributes[selects->attr_num++] = agg_info->agg_attr;
-  selects->aggregations[selects->aggregation_num++] = *agg_info;
+
+void selects_set_aggregation(Selects *selects, AggInfo *agg_info) {
+  SelectAttr *attr = &selects->attributes[selects->attr_num];
+  attr->type = SELECT_ATTR_AGG;
+  attr->attr.aggregation = *agg_info;
 }
+
 void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
 }
 
 void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse) {
-  selects_append_attribute(selects, orderby);
   OrderBy *order = &selects->orders[selects->order_num];
   order->reverse = reverse;
   order->order_attr = *orderby;
@@ -129,7 +136,11 @@ void selects_append_conditions(Selects *selects, Condition conditions[], size_t 
 
 void selects_destroy(Selects *selects) {
   for (size_t i = 0; i < selects->attr_num; i++) {
-    relation_attr_destroy(&selects->attributes[i]);
+    if (selects->attributes[i].type == SELECT_ATTR_ATTR) {
+      relation_attr_destroy(&selects->attributes[i].attr.attr);
+    } else if (selects->attributes[i].type == SELECT_ATTR_AGG) {
+      relation_attr_destroy(&selects->attributes[i].attr.aggregation.agg_attr);
+    }
   }
   selects->attr_num = 0;
 
@@ -143,6 +154,16 @@ void selects_destroy(Selects *selects) {
     condition_destroy(&selects->conditions[i]);
   }
   selects->condition_num = 0;
+
+  for (size_t i = 0; i < selects->order_num; i++) {
+    relation_attr_destroy(&selects->orders[i].order_attr);
+  }
+  selects->order_num = 0;
+
+  for (size_t i = 0; i < selects->group_num; i++) {
+    relation_attr_destroy(&selects->groups[i].group_attr);
+  }
+  selects->group_num = 0;
 }
 
 void inserts_init(Inserts *inserts, const char *relation_name) {

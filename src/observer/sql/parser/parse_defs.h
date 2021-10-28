@@ -77,6 +77,24 @@ typedef struct {
     Value value;
 } AggInfo;
 
+typedef union {
+  /* 聚合 avg(x) */
+  AggInfo aggregation;
+  /* x */
+  RelAttr attr;
+} _SelectAttr;
+
+enum SELECT_ATTR_T {
+    SELECT_ATTR_NONE = 0,
+    SELECT_ATTR_AGG,
+    SELECT_ATTR_ATTR,
+};
+
+typedef struct {
+  _SelectAttr attr;
+  enum SELECT_ATTR_T type;
+} SelectAttr;
+
 typedef struct {
   RelAttr order_attr;
   int reverse;
@@ -89,17 +107,16 @@ typedef struct {
 
 // struct of select
 typedef struct {
-  size_t    attr_num;               // Length of attrs in Select clause
-  RelAttr   attributes[MAX_NUM];    // attrs in Select clause
+  size_t    attr_num;               // Length of all attrs
+  SelectAttr attributes[MAX_NUM];   // attrs
+
+  size_t aggregate_num;
 
   size_t    relation_num;           // Length of relations in Fro clause
   char *    relations[MAX_NUM];     // relations in From clause
 
   size_t    condition_num;          // Length of conditions in Where clause
   Condition conditions[MAX_NUM];    // conditions in Where clause
-
-  size_t    aggregation_num;        // Length of aggregation in Agg clause
-  AggInfo   aggregations[MAX_NUM];  // infos for aggregations
 
   size_t    order_num;              // Length of order by
   OrderBy   orders[MAX_NUM];        // infos for order by
@@ -237,8 +254,8 @@ void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t
 void attr_info_destroy(AttrInfo *attr_info);
 
 void selects_init(Selects *selects, ...);
-void selects_append_attribute(Selects *selects, RelAttr *rel_attr);
-void selects_append_aggregation(Selects *selects, AggInfo *agg_info);
+void selects_set_attribute(Selects *selects, RelAttr *rel_attr);
+void selects_set_aggregation(Selects *selects, AggInfo *agg_info);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse);

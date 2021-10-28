@@ -344,7 +344,7 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where order_by SEMICOLON
+    SELECT select_attr_list FROM ID rel_list where order_by SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
@@ -414,225 +414,112 @@ order_attr:
 //   ;
 // group_attr:
 //   ;
-
+select_attr_list:
+    select_attr {
+      // SelectAttr *attr = &CONTEXT->ssql->sstr.selection.attributes[selects->attr_num];
+      selects->attr_num++;
+    }
+    | select_attr_list COMMA select_attr {}
+    ;
 select_attr:
-    STAR attr_list {
+    simple_select_attr {}
+    | agg_attr {}
+    ;
+simple_select_attr:
+    STAR {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
-    | ID attr_list {
+    | ID {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $1);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
-  	| ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $1, $3);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-		}
-	| ID DOT STAR attr_list {
+    | ID DOT STAR {
       RelAttr attr;
       relation_attr_init(&attr, $1, "*");
-      selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-	}
-    | COUNT LBRACE agg_value RBRACE agg_list {
-      Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
-      agg_info->agg_type = AGG_COUNT;
+      selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
     }
-    | MAX LBRACE agg_value RBRACE agg_list {
-      Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
-      agg_info->agg_type = AGG_MAX;
-    }
-    | MIN LBRACE agg_value RBRACE agg_list {
-      Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
-      agg_info->agg_type = AGG_MIN;
-    }
-    | AVG LBRACE agg_value RBRACE agg_list {
-      Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
-      agg_info->agg_type = AGG_AVG;
-    }
-  | COUNT LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $3, $5);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_COUNT;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | MAX LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $3, $5);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_MAX;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | MIN LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $3, $5);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_MIN;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | AVG LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $3, $5);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_AVG;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | COUNT LBRACE ID DOT STAR RBRACE agg_list {
+  	| ID DOT ID {
 			RelAttr attr;
-			relation_attr_init(&attr, $3, "*");
-			AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-			ainfo.agg_type = AGG_COUNT;
-			ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
+			relation_attr_init(&attr, $1, $3);
+			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
 		}
     ;
-attr_list:
-    /* empty */
-    | COMMA ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, NULL, $2);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-     	  // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].relation_name = NULL;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].attribute_name=$2;
-      }
-    | COMMA ID DOT ID attr_list {
-			RelAttr attr;
-			relation_attr_init(&attr, $2, $4);
-			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length].attribute_name=$4;
-        // CONTEXT->ssql->sstr.selection.attributes[CONTEXT->select_length++].relation_name=$2;
-  	  }
-    | COMMA ID DOT STAR attr_list {
-    			RelAttr attr;
-    			relation_attr_init(&attr, $2, "*");
-    			selects_append_attribute(&CONTEXT->ssql->sstr.selection, &attr);
-    }
-agg_list:
-    /* empty */
-    | COMMA COUNT LBRACE agg_value RBRACE agg_list {
+agg_attr:
+    COUNT LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
+      AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_COUNT;
     }
-    | COMMA MAX LBRACE agg_value RBRACE agg_list {
+    | MAX LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
+      AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MAX;
     }
-    | COMMA MIN LBRACE agg_value RBRACE agg_list {
+    | MIN LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
+      AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MIN;
     }
-    | COMMA AVG LBRACE agg_value RBRACE agg_list {
+    | AVG LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      AggInfo *agg_info = &selection->aggregations[--CONTEXT->aggregations_length];
+      AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_AVG;
     }
-  | COMMA COUNT LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $4, $6);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_COUNT;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | COMMA MAX LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $4, $6);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_MAX;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | COMMA MIN LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $4, $6);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_MIN;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | COMMA AVG LBRACE ID DOT ID RBRACE agg_list {
-      RelAttr attr;
-      relation_attr_init(&attr, $4, $6);
-      AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-      ainfo.agg_type = AGG_AVG;
-      ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-    }
-  | COMMA COUNT LBRACE ID DOT STAR RBRACE agg_list  {
-			RelAttr attr;
-			relation_attr_init(&attr, $4, "*");
-			AggInfo ainfo;
-      memset(&ainfo, 0, sizeof(AggInfo));
-			ainfo.agg_type = AGG_COUNT;
-			ainfo.agg_attr = attr;
-      ainfo.need_table_name = 1;
-      selects_append_aggregation(&CONTEXT->ssql->sstr.selection, &ainfo);
-		}
     ;
 agg_value:
     //特殊的 "*"
     STAR {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      CONTEXT->aggregations_length++;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
-      agg_info->need_all = 1;
-      agg_info->agg_attr.attribute_name = strdup("*");
-      selection->attributes[selection->attr_num++] = agg_info->agg_attr;
+			AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(AggInfo));
+			relation_attr_init(&ainfo.agg_attr, NULL, "*");
+      ainfo->need_all = 1;
+      selects_set_aggregation(selection, &ainfo);
     }
     // 属性名
     | ID {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      CONTEXT->aggregations_length++;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
-      agg_info->agg_attr.attribute_name = strdup($1);
-      selection->attributes[selection->attr_num++] = agg_info->agg_attr;
+			AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(AggInfo));
+			relation_attr_init(&ainfo.agg_attr, NULL, strdup($1));
+      selects_set_aggregation(selection, &ainfo);
+    }
+    | ID DOT ID {
+      Selects *selection = &CONTEXT->ssql->sstr.selection;
+			AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(AggInfo));
+			relation_attr_init(&ainfo.agg_attr, $1, $3);
+      ainfo.need_table_name = 1;
+      selects_set_aggregation(selection, &ainfo);
+    }
+    | ID DOT STAR {
+      Selects *selection = &CONTEXT->ssql->sstr.selection;
+			AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(AggInfo));
+			relation_attr_init(&ainfo.agg_attr, $1, "*");
+      ainfo.need_table_name = 1;
+      ainfo.need_all = 1;
+      selects_set_aggregation(selection, &ainfo);
     }
     // 下面都是常量
     | NUMBER {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      CONTEXT->aggregations_length++;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
-      agg_info->is_constant = 1;
+      AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(ainfo));
+      ainfo.is_constant = 1;
   		value_init_integer(&agg_info->value, $1);
+      selects_set_aggregation(selection, &ainfo);
 		}
     | FLOAT {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
-      CONTEXT->aggregations_length++;
-      AggInfo *agg_info = &selection->aggregations[selection->aggregation_num++];
-      agg_info->is_constant = 1;
+      AggInfo ainfo;
+      memset(&ainfo, 0, sizeof(ainfo));
+      ainfo.is_constant = 1;
   		value_init_float(&agg_info->value, $1);
+      selects_set_aggregation(selection, &ainfo);
 		}
     ;
 rel_list:

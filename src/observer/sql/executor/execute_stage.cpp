@@ -337,11 +337,14 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
 // 每次传一项做aggregation
 RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, bool is_multi) {
     Trx *trx = session->current_trx();
-    auto agg_info = selects.aggregations;
+    auto attrs = selects.attributes;
     auto *agg_node = new AggregationNode();
 
-    for (int i = 0; i < selects.aggregation_num; ++i) {
-      auto agg_item = agg_info[i];
+    for (int i = 0; i < selects.attr_num; ++i) {
+      auto attr = attrs[i];
+      AggInfo *agg_item = nullptr;
+
+      // agg_item = attr;
 
       if (agg_item.agg_type != AGG_NONE) {
           Value *value = nullptr;
