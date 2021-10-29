@@ -1,10 +1,9 @@
-/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its affiliates. All rights reserved.
-miniob is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+/* Copyright (c) 2021 Xie Meiyi(xiemeiyi@hust.edu.cn) and OceanBase and/or its
+affiliates. All rights reserved. miniob is licensed under Mulan PSL v2. You can
+use this software according to the terms and conditions of the Mulan PSL v2. You
+may obtain a copy of Mulan PSL v2 at: http://license.coscl.org.cn/MulanPSL2 THIS
+SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
@@ -301,7 +300,7 @@ int run_test(int sockfd) {
     false);
   t("select min(test1.in1), max(test2.fl2) from test1, test2;",
     "min(test1.in1) | max(test2.fl2)\n"
-    "1 | 1.1\n",
+    "1 | 5.5\n",
     false);
   t("select count(in1),max(fl1),avg(fl1),count(*) from test1;",
     "count(in1) | max(fl1) | avg(fl1) | count(*)\n"
@@ -323,7 +322,54 @@ int run_test(int sockfd) {
     "max(1.1) | count(*)\n"
     "1.1 | 5\n",
     false);
+  t("select min(test1.in1) from test1, test2;",
+    "min(test1.in1)\n"
+    "1\n",
+    true);
+  t("select max(test1.in1), count(*), count(*), "
+    "count(test1.in1),count(*),min(test2.in2) from test1,test2;",
+    "max(test1.in1) | count(*) | count(*) | count(test1.in1) | count(*) | "
+    "min(test2.in2)\n"
+    "5 | 25 | 25 | 25 | 25 | 1\n",
+    true);
+  t("select max(test1.in1), count(*), count(*), "
+    "count(test1.in1),count(*),min(test2.in2),test1.in1 from test1,test2;",
+    "max(test1.in1) | count(*) | count(*) | count(test1.in1) | count(*) | "
+    "min(test2.in2) | test1.in1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 1\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 2\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 2\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 2\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 2\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 2\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 3\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 3\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 3\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 3\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 3\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 4\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 4\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 4\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 4\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 4\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 5\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 5\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 5\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 5\n"
+    "5 | 25 | 25 | 25 | 25 | 1 | 5\n",
+    true);
 
+  // t(select max(test1.in1) from test1, test2; // y t(select avg(test1.in1)
+  // from test1, test2;                                                 // y
+  // t(select count(test1.in1) from test1, test2; // y t(select count(test1.in1)
+  // from test1, test2 where test1.fl1 = test2.fl2;                   // y
+  // t(select count(*) from test1, test2; // y t(select max(test1.in1),
+  // count(*), count(*), count(test1.in1),count(*),min(test2.in2) from
+  // test1,test2; // y
   return 0;
 }
 
