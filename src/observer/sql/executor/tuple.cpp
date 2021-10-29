@@ -250,11 +250,16 @@ const Tuple &TupleSet::get(int index) const {
 
 RC TupleSet::add_tupleset(TupleSet&& tuple_set) {
   // 此时我们默认他们的fields是一样的
-  auto tuple_set_ = tuple_set.tuples();
-  
-  for (auto& item : tuple_set_) {
-    add(std::move(item));
+  auto &tuple_set_ = tuple_set.tuples();
+
+  if (schema_.fields().size() == 0) {
+    set_schema(tuple_set.get_schema());
   }
+  auto len = tuple_set_.size();
+  for (int i = 0; i < len; ++i) {
+    add(std::move(const_cast<Tuple&&>(tuple_set_[i])));
+  }
+  return SUCCESS;
 }
 
 const std::vector<Tuple> &TupleSet::tuples() const {

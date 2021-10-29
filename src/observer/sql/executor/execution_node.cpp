@@ -230,31 +230,34 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
     TupleSet temp_tuple;
 
     // step1:我们在聚合中其实只生成了一个tuple，其中聚合部分有值，其他地方为填充值
-    temp_tuple.set_schema(*result_schema);
+      temp_tuple.set_schema(*result_schema);
 
     // step2:通过tuples的每一行去生成我们需要的行，需要填充的地方进行填充，聚合就直接拷贝，共享智能指针
     // 获取fields中我们需要拿数据的列，通过判断table_name为空来判断是否是聚合字段
     auto fields = result_schema->fields();
+    if (selects_->aggregate_num == selects_->attr_num) {
+        temp_tuple.add(std::move(tuple));
+    } else {
 
-    for (int i = 0; i < tuples.size(); ++i) {
-        // 得到传入tuples的每一个tuple
-        auto &desc_tuple = tuples.get(i);
-        Tuple tuple_;
-        // 遍历这个tuple的的每一个field
-        for (size_t j = 0; j < fields.size(); j++) {
-            if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
-              auto table_name = fields[j].table_name();
-              if (!table_name || strcmp(table_name, "") == 0) {
-                table_name = selects_->relations[0];
+      for (int i = 0; i < tuples.size(); ++i) {
+          // 得到传入tuples的每一个tuple
+          auto &desc_tuple = tuples.get(i);
+          Tuple tuple_;
+          // 遍历这个tuple的的每一个field
+          for (size_t j = 0; j < fields.size(); j++) {
+              if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
+                auto table_name = fields[j].table_name();
+                if (!table_name || strcmp(table_name, "") == 0) {
+                  table_name = selects_->relations[0];
+                }
+                auto index = tuples.get_schema().index_of_field(fields[j].table_name() , fields[j].field_name());
+                tuple_.add(desc_tuple.get_pointer(index));
+              } else {
+                  tuple_.add(tuple.get_pointer(j));
               }
-              auto index = tuples.get_schema().index_of_field(fields[j].table_name() , fields[j].field_name());
-              tuple_.add(desc_tuple.get_pointer(index));
-            } else {
-                tuple_.add(tuple.get_pointer(j));
-            }
-        }
-
-        temp_tuple.add(std::move(tuple_));
+          }
+          temp_tuple.add(std::move(tuple_));
+      }
     }
     tuples = std::move(temp_tuple);
     return;

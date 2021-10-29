@@ -447,6 +447,14 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
+      std::stringstream ss;
+      if(tuple_sets.size() > 1) {
+        result_tupleset.front().print(ss, true);
+      } else {
+        // 当前只查询一张表，直接返回结果即可
+        result_tupleset.front().print(ss, false);
+      }
+      LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
       // 最终这里需要把数据聚合到一张表中
       real_result.add_tupleset(std::move(item));
     }
@@ -455,7 +463,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
 
   // step5: order by,最终数据会存储在result_tupleset的第一项
-  result_tupleset.front().orderBy(selects.orders, selects.order_num);
+  // result_tupleset.front().orderBy(selects.orders, selects.order_num);
 
   end_trx_if_need(session, trx, true);
 
@@ -568,13 +576,15 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     // 一定是agg相关的字段
     auto agg = select_item.attr.aggregation;
     auto attr = agg.agg_attr;
-    if (0 == strcmp("*", attr.attribute_name)) {
-      // 列出这张表所有字段
-      TupleSchema::from_table(table, schema);
-    } else {
-      RC rc = schema_add_field(table, attr.attribute_name, schema);
-      if (rc != RC::SUCCESS) {
-        return rc;
+    if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+      if (0 == strcmp("*", attr.attribute_name)) {
+        // 列出这张表所有字段
+        TupleSchema::from_table(table, schema);
+      } else {
+        RC rc = schema_add_field(table, attr.attribute_name, schema);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
       }
     }
   }
@@ -583,9 +593,11 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   auto order_by = selects.orders;
   for (size_t i = 0; i < selects.order_num; i++) {
     auto attr = order_by->order_attr;
-    RC rc = schema_add_field(table, attr.attribute_name, schema);
-    if (rc != RC::SUCCESS) {
-      return rc;
+    if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+      RC rc = schema_add_field(table, attr.attribute_name, schema);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
     }
   }
   
