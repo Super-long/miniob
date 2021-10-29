@@ -75,7 +75,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
 
     switch (type_) {
         case AGG_T::AGG_COUNT: {
-            field_name = "count(" + (need_table_name_? table_name_? std::string(table_name_)+ ".":std::string("") :"") +
+            field_name = "count(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             LOG_DEBUG("agg count field display {%s}", field_name.c_str());
             result_schema->add(AttrType::INTS, "", field_name.c_str());
@@ -87,7 +87,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         }
         case AGG_T::AGG_MAX: {
             /* assert !need_all */
-            field_name = "max(" + (need_table_name_? table_name_? std::string(table_name_)+ ".":std::string("")  :"") +
+            field_name = "max(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
             // if (tuple_set.is_empty()) {
@@ -114,7 +114,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             break;
         }
         case AGG_T::AGG_MIN: {
-            field_name = "min(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("") :"") +
+            field_name = "min(" +(need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
             // if (tuple_set.is_empty()) {
@@ -143,7 +143,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         }
         case AGG_T::AGG_AVG: {
             // only support for int / float
-            field_name = "avg(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("")  :"") +
+            field_name = "avg(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(FLOATS, "", field_name.c_str());
             // if (tuple_set.is_empty()) {

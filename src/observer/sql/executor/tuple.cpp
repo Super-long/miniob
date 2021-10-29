@@ -165,7 +165,7 @@ void TupleSchema::multi_print(std::ostream &os) const {
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
     // 防止多表聚合时出现的额外"."，原因时table_name是空的
-    if (static_cast<std::string>(fields_.back().table_name()) != "") {
+    if (static_cast<std::string>(iter->table_name()) != "") {
       os << iter->table_name() << ".";
     }
     os << iter->field_name() << " | ";

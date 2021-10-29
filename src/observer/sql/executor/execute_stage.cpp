@@ -577,7 +577,10 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
     auto agg = select_item.attr.aggregation;
     auto attr = agg.agg_attr;
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
-      if (0 == strcmp("*", attr.attribute_name)) {
+        /* AVG(1.1) */
+      if (!attr.attribute_name)
+        continue;
+      else if (0 == strcmp("*", attr.attribute_name)) {
         // 列出这张表所有字段
         TupleSchema::from_table(table, schema);
       } else {
