@@ -416,8 +416,6 @@ order_attr:
 //   ;
 select_attr_list:
     select_attr {
-      // SelectAttr *attr = &CONTEXT->ssql->sstr.selection.attributes[selects->attr_num];
-      selects->attr_num++;
     }
     | select_attr_list COMMA select_attr {}
     ;
@@ -430,11 +428,13 @@ simple_select_attr:
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, "*");
 			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+      CONTEXT->ssql->sstr.selection.attr_num++;
 		}
     | ID {
 			RelAttr attr;
 			relation_attr_init(&attr, NULL, $1);
 			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+      CONTEXT->ssql->sstr.selection.attr_num++;
 		}
     | ID DOT STAR {
       RelAttr attr;
@@ -445,6 +445,7 @@ simple_select_attr:
 			RelAttr attr;
 			relation_attr_init(&attr, $1, $3);
 			selects_set_attribute(&CONTEXT->ssql->sstr.selection, &attr);
+      CONTEXT->ssql->sstr.selection.attr_num++;
 		}
     ;
 agg_attr:
@@ -453,24 +454,28 @@ agg_attr:
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_COUNT;
       selection->aggregate_num++;
+      selection->attr_num++;
     }
     | MAX LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MAX;
       selection->aggregate_num++;
+      selection->attr_num++;
     }
     | MIN LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_MIN;
       selection->aggregate_num++;
+      selection->attr_num++;
     }
     | AVG LBRACE agg_value RBRACE {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       AggInfo *agg_info = &selection->attributes[selection->attr_num].attr.aggregation;
       agg_info->agg_type = AGG_AVG;
       selection->aggregate_num++;
+      selection->attr_num++;
     }
     ;
 agg_value:
@@ -480,7 +485,7 @@ agg_value:
 			AggInfo ainfo;
       memset(&ainfo, 0, sizeof(AggInfo));
 			relation_attr_init(&ainfo.agg_attr, NULL, "*");
-      ainfo->need_all = 1;
+      ainfo.need_all = 1;
       selects_set_aggregation(selection, &ainfo);
     }
     // 属性名
@@ -514,7 +519,7 @@ agg_value:
       AggInfo ainfo;
       memset(&ainfo, 0, sizeof(ainfo));
       ainfo.is_constant = 1;
-  		value_init_integer(&agg_info->value, $1);
+  		value_init_integer(&ainfo.value, $1);
       selects_set_aggregation(selection, &ainfo);
 		}
     | FLOAT {
@@ -522,7 +527,7 @@ agg_value:
       AggInfo ainfo;
       memset(&ainfo, 0, sizeof(ainfo));
       ainfo.is_constant = 1;
-  		value_init_float(&agg_info->value, $1);
+  		value_init_float(&ainfo.value, $1);
       selects_set_aggregation(selection, &ainfo);
 		}
     ;

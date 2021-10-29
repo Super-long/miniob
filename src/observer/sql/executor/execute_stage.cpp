@@ -341,24 +341,25 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
     auto *agg_node = new AggregationNode();
 
     for (int i = 0; i < selects.attr_num; ++i) {
-      auto attr = attrs[i];
+      const auto &attr = attrs[i];
       if (attr.type != SELECT_ATTR_AGG) {
         // 其实对于整个orderby来说，下面的field我们只需要生成一次，目前简化逻辑，我们每次都生成一次
         // 当遇到一个非聚合项的时候在field中插入对应的类型
         auto attr_item = selects.attributes[i].attr;
-        Table * table = DefaultHandler::get_default().find_table(db, attr_item.attr.relation_name);
+        auto table_name  = attr_item.attr.relation_name ? attr_item.attr.relation_name : selects.relations[0];
+        Table * table = DefaultHandler::get_default().find_table(db, table_name);
         const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
         if (nullptr == field_meta) {
           LOG_WARN("No such field. %s.%s", table->name(), attr_item.attr.attribute_name);
           return RC::SCHEMA_FIELD_MISSING;
         }
-        agg_node->add_field(field_meta->type(), attr_item.attr.relation_name, attr_item.attr.attribute_name);
+        agg_node->add_field(field_meta->type(), table_name, attr_item.attr.attribute_name);
         continue;
       }
 
-      AggInfo &agg_item = attr.attr.aggregation;
+      const AggInfo &agg_item = attr.attr.aggregation;
       if (agg_item.agg_type != AGG_NONE) {
-          Value *value = nullptr;
+          const Value *value = nullptr;
           if (agg_item.is_constant) {
             value = &agg_item.value;
           }
@@ -379,11 +380,12 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
             // 多表的情况下需要显示表名
             LOG_DEBUG("mutli: tablename{%s}, attrname{%s} need_table_name{%d} ", table_name, attr_name, agg_item.need_table_name);
             agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()), 
-              table_name, attr_name, agg_item.agg_type, 1, value, agg_item.need_all);
+              table_name, attr_name, agg_item.agg_type, selects, 1, value, agg_item.need_all);
           } else {
             LOG_DEBUG("single: tablename{%s} attrname{%s} need_table_name{%d} agg_info.need_all{%d}", selects.relations[0], attr_name, agg_item.need_table_name, agg_item.need_all);
             agg_node->init(const_cast<TupleSchema &&>(result_tupleset.get_schema()),
-              selects.relations[0], attr_name, agg_item.agg_type, agg_item.need_table_name, value, agg_item.need_all);
+              selects.relations[0], attr_name, agg_item.agg_type, selects, 
+              agg_item.need_table_name, value, agg_item.need_all);
           }
           LOG_DEBUG("execute select node");
           RC rc = agg_node->execute(result_tupleset);
@@ -393,7 +395,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
           }
       }
     }
-    agg_node->finish();
+    // agg_node->finish();
     agg_node->get_result_tuple(result_tupleset);
     return RC::SUCCESS;
 }
@@ -524,7 +526,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   LOG_DEBUG("create_selection_executor->table_name : {%s}", table_name);
 
   // step1. normal attr
-  for (int i = selects.attr_num - 1; i >= 0; i--) {
+  for (int i = 0; i < selects.attr_num; i++) {
     const SelectAttr &select_item = selects.attributes[i];
     if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_AGG) {
       continue;
@@ -558,7 +560,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   }
 
   // step2. aggregation
-  for (int i = selects.attr_num - 1; i >= 0; i--) {
+  for (int i = 0; i < selects.attr_num; i++) {
     const SelectAttr &select_item = selects.attributes[i];
     if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_ATTR) {
       continue;

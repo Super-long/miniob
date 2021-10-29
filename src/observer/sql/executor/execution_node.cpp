@@ -32,6 +32,7 @@ SelectExeNode::init(Trx *trx, Table *table, TupleSchema &&tuple_schema, std::vec
   table_ = table;
   tuple_schema_ = tuple_schema;
   condition_filters_ = std::move(condition_filters);
+
   return RC::SUCCESS;
 }
 
@@ -54,10 +55,9 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
     // 目前我们不考虑可能重复的情况
     // 比如 select t1, avg(t2), t1 这种情况不会被筛选出来
     result_schema->add(type, table_name, field_name);
-    Tuple res = Tuple();
-    // 其实就是插入一个临时的值，后面会进行替换的
-    res.add(0);
-    tuple.add(res.get_pointer(0));
+    // // 其实就是插入一个临时的值，后面会进行替换的
+    tuple.add(0);
+    return RC::SUCCESS;
 }
 
 RC AggregationNode::execute(TupleSet &tuple_set) {
@@ -90,11 +90,11 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "max(" + (need_table_name_? table_name_? std::string(table_name_)+ ".":std::string("")  :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            if (tuple_set.is_empty()) {
-                tuple_set.clear();
-                tuple_set.set_schema(result_set->get_schema());
-                break;
-            }
+            // if (tuple_set.is_empty()) {
+            //     tuple_set.clear();
+            //     tuple_set.set_schema(result_set->get_schema());
+            //     break;
+            // }
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -117,11 +117,11 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "min(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("") :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(attr_type, "", field_name.c_str());
-            if (tuple_set.is_empty()) {
-                tuple_set.clear();
-                tuple_set.set_schema(result_set->get_schema());
-                break;
-            }
+            // if (tuple_set.is_empty()) {
+            //     tuple_set.clear();
+            //     tuple_set.set_schema(result_set->get_schema());
+            //     break;
+            // }
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -146,11 +146,11 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "avg(" + (need_table_name_? table_name_? std::string(table_name_)+ "." :std::string("")  :"") +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             result_schema->add(FLOATS, "", field_name.c_str());
-            if (tuple_set.is_empty()) {
-                tuple_set.clear();
-                tuple_set.set_schema(result_set->get_schema());
-                break;
-            }
+            // if (tuple_set.is_empty()) {
+            //     tuple_set.clear();
+            //     tuple_set.set_schema(result_set->get_schema());
+            //     break;
+            // }
             res = Tuple();
             auto *sum = new FloatValue(0);
             if (value_) {
@@ -197,8 +197,9 @@ RC AggregationNode::init(TupleSchema && tuple_schema,
             const char *table_name,
             const char *attr_name,
             AGG_T type,
+            const Selects &selects,
             int need_table_name,
-            Value* value,
+            const Value* value,
             int need_all)
 {
     tuple_schema_ = tuple_schema;
@@ -207,21 +208,22 @@ RC AggregationNode::init(TupleSchema && tuple_schema,
     type_ = type;
     need_table_name_ = need_table_name;
     need_all_ = need_all;
-    value_ = ValueToTupleValue(value);
+    selects_ = &selects;
+    value_ = ValueToTupleValue(const_cast<Value*>(value));
 
     return SUCCESS;
 }
 
 AggregationNode::~AggregationNode() {
-    delete result_set;
+    // delete result_set;
     delete result_schema;
     delete value_;
 }
 
-void AggregationNode::finish() {
-    result_set->add(std::move(tuple));
-    result_set->set_schema(*result_schema);
-}
+// void AggregationNode::finish() {
+//     result_set->add(std::move(tuple));
+//     result_set->set_schema(*result_schema);
+// }
 
 void AggregationNode::get_result_tuple(TupleSet& tuples) {
     // 我们需要在tuples中找到前面生成的field对应的项，然后生成结果
@@ -236,14 +238,19 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
 
     for (int i = 0; i < tuples.size(); ++i) {
         // 得到传入tuples的每一个tuple
-        auto desc_tuple = tuples.get(i);
+        auto &desc_tuple = tuples.get(i);
         Tuple tuple_;
         // 遍历这个tuple的的每一个field
-        for (size_t i = 0; i < fields.size(); i++) {
-            if (strcmp(fields[i].table_name(), "") == 0) {
-                tuple_.add(desc_tuple.get_pointer(i));
+        for (size_t j = 0; j < fields.size(); j++) {
+            if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
+              auto table_name = fields[j].table_name();
+              if (!table_name || strcmp(table_name, "") == 0) {
+                table_name = selects_->relations[0];
+              }
+              auto index = tuples.get_schema().index_of_field(fields[j].table_name() , fields[j].field_name());
+              tuple_.add(desc_tuple.get_pointer(index));
             } else {
-                tuple_.add(tuple.get_pointer(i));
+                tuple_.add(tuple.get_pointer(j));
             }
         }
 

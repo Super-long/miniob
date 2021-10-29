@@ -53,7 +53,7 @@ private:
 class AggregationNode : public ExecutionNode {
 public:
     AggregationNode() {
-      result_set = new TupleSet;
+      // result_set = new TupleSet;
       result_schema = new TupleSchema;
     }
     ~AggregationNode();
@@ -62,14 +62,15 @@ public:
                 const char *table_name,
                 const char *attr_name,
                 AGG_T type,
+                const Selects &selects,
                 int need_table_name = 0,
-                Value* value = nullptr,
+                const Value* value = nullptr,
                 int need_all = 0
     );
 
     RC execute(TupleSet &tuple_set) override;
     RC add_field(AttrType type, const char *table_name, const char *field_name);
-    void finish();
+    // void finish();
     void get_result_tuple(TupleSet& tuples);
 
 private:
@@ -82,8 +83,9 @@ private:
     const char *attr_name_;
 
     Tuple tuple;
-    TupleSet *result_set;
+    // TupleSet *result_set;
     TupleSchema *result_schema;
+    const Selects *selects_;
 };
 
 class CrossJoinNode : public ExecutionNode {
