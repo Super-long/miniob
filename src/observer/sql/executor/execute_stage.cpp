@@ -325,7 +325,7 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
         }
     }
     // 再过滤列，删除projection相关
-    left_set.erase_projection();
+    //left_set.erase_projection();
     result_tupleset.emplace_back(std::move(left_set));
   } else {
     // 当前只查询一张表，直接返回结果即可
@@ -463,7 +463,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
 
   // step5: order by,最终数据会存储在result_tupleset的第一项
-  // result_tupleset.front().orderBy(selects.orders, selects.order_num);
+  result_tupleset.front().orderBy(selects.orders, selects.order_num);
+
+  // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉
+  result_tupleset.front().erase_projection();
 
   end_trx_if_need(session, trx, true);
 
@@ -597,7 +600,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   for (size_t i = 0; i < selects.order_num; i++) {
     auto attr = order_by->order_attr;
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
-      RC rc = schema_add_field(table, attr.attribute_name, schema);
+      RC rc = schema_add_field_projection(table, attr.attribute_name, schema);
       if (rc != RC::SUCCESS) {
         return rc;
       }
