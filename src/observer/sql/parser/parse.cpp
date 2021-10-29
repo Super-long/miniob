@@ -63,6 +63,7 @@ void value_destroy(Value *value) {
 void condition_init(Condition *condition, CompOp comp, 
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
                     int right_is_attr, RelAttr *right_attr, Value *right_value) {
+  memset(condition, 0, sizeof(Condition));
   condition->comp = comp;
   condition->left_is_attr = left_is_attr;
   if (left_is_attr) {
