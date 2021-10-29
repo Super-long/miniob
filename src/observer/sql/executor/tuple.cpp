@@ -248,6 +248,15 @@ const Tuple &TupleSet::get(int index) const {
   return tuples_[index];
 }
 
+RC TupleSet::add_tupleset(TupleSet&& tuple_set) {
+  // 此时我们默认他们的fields是一样的
+  auto tuple_set_ = tuple_set.tuples();
+  
+  for (auto& item : tuple_set_) {
+    add(std::move(item));
+  }
+}
+
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
 }

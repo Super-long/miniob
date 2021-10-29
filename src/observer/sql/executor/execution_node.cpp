@@ -49,6 +49,17 @@ RC SelectExeNode::execute(TupleSet &tuple_set) {
   return table_->scan_record(trx_, &condition_filter, -1, (void *)&converter, record_reader);
 }
 
+// 为了加入属性中的非聚合字段
+RC AggregationNode::add_field(AttrType type, const char *table_name, const char *field_name) {
+    // 目前我们不考虑可能重复的情况
+    // 比如 select t1, avg(t2), t1 这种情况不会被筛选出来
+    result_schema->add(type, table_name, field_name);
+    Tuple res = Tuple();
+    // 其实就是插入一个临时的值，后面会进行替换的
+    res.add(0);
+    tuple.add(res.get_pointer(0));
+}
+
 RC AggregationNode::execute(TupleSet &tuple_set) {
     std::string field_name;
     Tuple res;
@@ -213,11 +224,32 @@ void AggregationNode::finish() {
 }
 
 void AggregationNode::get_result_tuple(TupleSet& tuples) {
-    tuples.clear();
-    tuples.set_schema(*result_schema);
-    for (int i = 0; i < result_set->size(); ++i) {
-        tuples.add(const_cast<Tuple &&>(result_set->get(i)));
+    // 我们需要在tuples中找到前面生成的field对应的项，然后生成结果
+    TupleSet temp_tuple;
+
+    // step1:我们在聚合中其实只生成了一个tuple，其中聚合部分有值，其他地方为填充值
+    temp_tuple.set_schema(*result_schema);
+
+    // step2:通过tuples的每一行去生成我们需要的行，需要填充的地方进行填充，聚合就直接拷贝，共享智能指针
+    // 获取fields中我们需要拿数据的列，通过判断table_name为空来判断是否是聚合字段
+    auto fields = result_schema->fields();
+
+    for (int i = 0; i < tuples.size(); ++i) {
+        // 得到传入tuples的每一个tuple
+        auto desc_tuple = tuples.get(i);
+        Tuple tuple_;
+        // 遍历这个tuple的的每一个field
+        for (size_t i = 0; i < fields.size(); i++) {
+            if (strcmp(fields[i].table_name(), "") == 0) {
+                tuple_.add(desc_tuple.get_pointer(i));
+            } else {
+                tuple_.add(tuple.get_pointer(i));
+            }
+        }
+
+        temp_tuple.add(std::move(tuple_));
     }
+    tuples = std::move(temp_tuple);
     return;
 }
 

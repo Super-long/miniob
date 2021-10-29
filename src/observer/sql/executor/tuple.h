@@ -139,6 +139,7 @@ public:
   const TupleSchema &get_schema() const;
 
   void add(Tuple && tuple);
+  RC add_tupleset(TupleSet&& tuple_set);
 
   void clear();
 

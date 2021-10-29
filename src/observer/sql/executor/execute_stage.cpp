@@ -335,17 +335,28 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
 }
 
 // 每次传一项做aggregation
-RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, bool is_multi) {
+RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, const char *db, bool is_multi) {
     Trx *trx = session->current_trx();
     auto attrs = selects.attributes;
     auto *agg_node = new AggregationNode();
 
     for (int i = 0; i < selects.attr_num; ++i) {
       auto attr = attrs[i];
-      if (attr.type != SELECT_ATTR_AGG)
+      if (attr.type != SELECT_ATTR_AGG) {
+        // 其实对于整个orderby来说，下面的field我们只需要生成一次，目前简化逻辑，我们每次都生成一次
+        // 当遇到一个非聚合项的时候在field中插入对应的类型
+        auto attr_item = selects.attributes[i].attr;
+        Table * table = DefaultHandler::get_default().find_table(db, attr_item.attr.relation_name);
+        const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
+        if (nullptr == field_meta) {
+          LOG_WARN("No such field. %s.%s", table->name(), attr_item.attr.attribute_name);
+          return RC::SCHEMA_FIELD_MISSING;
+        }
+        agg_node->add_field(field_meta->type(), attr_item.attr.relation_name, attr_item.attr.attribute_name);
         continue;
-      AggInfo &agg_item = attr.attr.aggregation;
+      }
 
+      AggInfo &agg_item = attr.attr.aggregation;
       if (agg_item.agg_type != AGG_NONE) {
           Value *value = nullptr;
           if (agg_item.is_constant) {
@@ -415,6 +426,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
 
   // step3:多表的情况下进行join操作，生成一份新的tuples，把结果集放到result_tupleset中
+  // 如果出现group_by的话我们需要去把结果做成多份放到result_tupleset中
   rc = cross_join(tuple_sets, selects, result_tupleset);
   if (rc != RC::SUCCESS) {
     end_trx_if_need(session, trx, false);
@@ -427,22 +439,28 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // 3). 只有一个其他属性，需要的只是此属性和where条件中的值
   // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
   if (selects.aggregate_num > 0) {
+    TupleSet real_result;
     for (auto& item : result_tupleset) {
-      rc = execute_aggregation(item, selects, session, tuple_sets.size() > 1);
+      rc = execute_aggregation(item, selects, session, db, tuple_sets.size() > 1);
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
+      // 最终这里需要把数据聚合到一张表中
+      real_result.add_tupleset(std::move(item));
     }
+    result_tupleset.clear();
+    result_tupleset.emplace_back(std::move(real_result));
   }
 
+  // step5: order by,最终数据会存储在result_tupleset的第一项
   result_tupleset.front().orderBy(selects.orders, selects.order_num);
 
   end_trx_if_need(session, trx, true);
 
-  // step5: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
+  // step6: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
   // 目前还没写group by，我们认为 result_tupleset 只有一项
   std::stringstream ss;
-  if(tuple_sets.size() > 1){
+  if(tuple_sets.size() > 1) {
     result_tupleset.front().print(ss, true);
   } else {
     // 当前只查询一张表，直接返回结果即可
@@ -505,9 +523,13 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
 
   LOG_DEBUG("create_selection_executor->table_name : {%s}", table_name);
 
+  // step1. normal attr
   for (int i = selects.attr_num - 1; i >= 0; i--) {
-    const RelAttr &attr = selects.attributes[i];
-    
+    const SelectAttr &select_item = selects.attributes[i];
+    if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_AGG) {
+      continue;
+    }
+    auto attr = select_item.attr.attr;
 
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
       LOG_DEBUG("attr.relation_name {%s}.  table_name : {%s}", attr.relation_name, table_name);
@@ -534,9 +556,42 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
       }
     }
   }
+
+  // step2. aggregation
+  for (int i = selects.attr_num - 1; i >= 0; i--) {
+    const SelectAttr &select_item = selects.attributes[i];
+    if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_ATTR) {
+      continue;
+    }
+    // 一定是agg相关的字段
+    auto agg = select_item.attr.aggregation;
+    auto attr = agg.agg_attr;
+    if (0 == strcmp("*", attr.attribute_name)) {
+      // 列出这张表所有字段
+      TupleSchema::from_table(table, schema);
+    } else {
+      RC rc = schema_add_field(table, attr.attribute_name, schema);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+  }
+
+  // step3. order by
+  auto order_by = selects.orders;
+  for (size_t i = 0; i < selects.order_num; i++) {
+    auto attr = order_by->order_attr;
+    RC rc = schema_add_field(table, attr.attribute_name, schema);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+  }
+  
+  // step4. group by
+  // null
+
   std::stringstream output;
   schema.print(output);
-
   LOG_DEBUG("tmp TupleSchema before filter : {%s}",output.str().c_str());
 
   // 找出仅与此表相关的过滤条件, 或者都是值的过滤条件
