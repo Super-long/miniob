@@ -362,14 +362,65 @@ int run_test(int sockfd) {
     "5 | 25 | 25 | 25 | 25 | 1 | 5\n"
     "5 | 25 | 25 | 25 | 25 | 1 | 5\n",
     true);
+  t("select count(*) from test1, test2;",
+    "count(*)\n"
+    "25\n",
+    true);
 
-  // t(select max(test1.in1) from test1, test2; // y t(select avg(test1.in1)
-  // from test1, test2;                                                 // y
-  // t(select count(test1.in1) from test1, test2; // y t(select count(test1.in1)
-  // from test1, test2 where test1.fl1 = test2.fl2;                   // y
-  // t(select count(*) from test1, test2; // y t(select max(test1.in1),
-  // count(*), count(*), count(test1.in1),count(*),min(test2.in2) from
-  // test1,test2; // y
+  t("select min(test1.in1) from test1, test2;",
+    "min(test1.in1)\n"
+    "1\n",
+    false);
+
+  t("select max(test1.in1) from test1, test2;",
+    "max(test1.in1)\n"
+    "5\n",
+    false);
+  t("select avg(test1.in1) from test1, test2;",
+    "avg(test1.in1)\n"
+    "3\n",
+    false);
+  t("select count(test1.in1) from test1, test2;",
+    "count(test1.in1)\n"
+    "25\n",
+    false);
+  t("select count(test1.in1) from test1, test2 where test1.fl1 = test2.fl2;",
+    "count(test1.in1)\n"
+    "5\n",
+    false);
+  t("select count(test1.in1) from test1, test2 where test1.fl1 > test2.fl2;",
+    "count(test1.in1)\n"
+    "10\n",
+    false);
+  t("select * from test1, test2 where test1.fl1 > test2.fl2;",
+    "test1.in1 | test1.ch1 | test1.fl1 | test1.da1 | test2.in2 | test2.ch2 | "
+    "test2.fl2 | test2.da2\n"
+    "2 | b | 2.2 | 2000-10-02 | 1 | a | 1.1 | 2000-10-01\n"
+    "3 | c | 3.3 | 2000-10-03 | 1 | a | 1.1 | 2000-10-01\n"
+    "3 | c | 3.3 | 2000-10-03 | 2 | b | 2.2 | 2000-10-02\n"
+    "4 | d | 4.4 | 2000-10-04 | 1 | a | 1.1 | 2000-10-01\n"
+    "4 | d | 4.4 | 2000-10-04 | 2 | b | 2.2 | 2000-10-02\n"
+    "4 | d | 4.4 | 2000-10-04 | 3 | c | 3.3 | 2000-10-03\n"
+    "5 | e | 5.5 | 2000-10-05 | 1 | a | 1.1 | 2000-10-01\n"
+    "5 | e | 5.5 | 2000-10-05 | 2 | b | 2.2 | 2000-10-02\n"
+    "5 | e | 5.5 | 2000-10-05 | 3 | c | 3.3 | 2000-10-03\n"
+    "5 | e | 5.5 | 2000-10-05 | 4 | d | 4.4 | 2000-10-04\n"
+    "\n",
+    false);
+  t("select count(*),test1.in1,test2.fl2 from test1, test2 where test1.fl1 > "
+    "test2.fl2;",
+    "count(*) | test1.in1 | test2.fl2\n"
+    "10 | 2 | 1.1\n"
+    "10 | 3 | 1.1\n"
+    "10 | 3 | 2.2\n"
+    "10 | 4 | 1.1\n"
+    "10 | 4 | 2.2\n"
+    "10 | 4 | 3.3\n"
+    "10 | 5 | 1.1\n"
+    "10 | 5 | 2.2\n"
+    "10 | 5 | 3.3\n"
+    "10 | 5 | 4.4\n",
+    false);
   return 0;
 }
 
