@@ -259,6 +259,7 @@ void selects_set_aggregation(Selects *selects, AggInfo *agg_info);
 void selects_append_relation(Selects *selects, const char *relation_name);
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num);
 void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse);
+void selects_append_groupby(Selects *selects, RelAttr *groupby);
 void selects_destroy(Selects *selects);
 
 void inserts_init(Inserts *inserts, const char *relation_name);

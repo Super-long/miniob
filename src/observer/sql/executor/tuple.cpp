@@ -138,20 +138,20 @@ void TupleSchema::print(std::ostream &os) const {
     return;
   }
 
-  // 判断有多张表还是只有一张表
-  std::set<std::string> table_names;
-  for (const auto &field: fields_) {
-    table_names.insert(field.table_name());
-  }
+  // // 判断有多张表还是只有一张表
+  // std::set<std::string> table_names;
+  // for (const auto &field: fields_) {
+  //   table_names.insert(field.table_name());
+  // }
 
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
     os << iter->field_name() << " | ";
   }
 
-  if (table_names.size() > 1) {
-    os << fields_.back().table_name() << ".";
-  }
+  // if (table_names.size() > 1) {
+  //   os << fields_.back().table_name() << ".";
+  // }
   os << fields_.back().field_name() << std::endl;
 }
 
@@ -318,6 +318,7 @@ void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<Tupl
   int index = 0;
   while (index < tuples_.size()) {
     TupleSet temp_tuples;
+    temp_tuples.set_schema(schema_);
     // 取不同的第一个tuple
     temp_tuples.add(std::move(tuples_[index++]));
 
@@ -326,9 +327,9 @@ void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<Tupl
       auto& group_tuple = tuples_[index];
       int ret = 0;
       for (size_t i = 0; i < group_num; i++) {
-        int attr_index = schema_.index_of_field(groups[index].group_attr.relation_name, groups[index].group_attr.attribute_name);
+        int attr_index = schema_.index_of_field(groups[i].group_attr.relation_name, groups[i].group_attr.attribute_name);
         if (attr_index == -1) {
-          LOG_ERROR("Unexpected %s:%s", groups[index].group_attr.relation_name, groups[index].group_attr.attribute_name);
+          LOG_ERROR("Unexpected %s:%s", groups[i].group_attr.relation_name, groups[i].group_attr.attribute_name);
         }
         ret = group_tuple.get(attr_index).compare(temp_tuples.get(0).get(attr_index));
         // 有一项field不一样
