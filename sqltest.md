@@ -95,4 +95,7 @@
 2. select * from test1, test2 where test1.in1 = test2.in2 order by test1.in1 desc;            // y
 3. select * from test1, test2 order by test1.in1, test2.in2 desc;                             // y
 4. select test1.in1, test2.in2 from test1, test2 order by test2.ch2 desc, order by test1.in1;
-5. select test1.in1, test2.in2 from test1, test2 order by test2.ch2, test1.in1 desc;          // y 
+5. select test1.in1, test2.in2 from test1, test2 order by test2.ch2, test1.in1 desc;          // y
+
+### group by
+1. select test1.in1, test2.in2 from test1, test2 group by test1.in1, test2.in2;

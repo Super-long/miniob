@@ -275,7 +275,9 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
   // 搞成vector是为了好改group by
   std::stringstream ss;
   RC rc = RC::SUCCESS;
+  TupleSet real_tupleset;
 
+  // step1.我们这里对把聚合后的结果（无论单表还是多表）扔在 real_tupleset 中
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
     auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
@@ -315,7 +317,7 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
         }
     }
 
-    // 先过滤行
+    // 先过滤行，列过滤放在orderby之后，为了滤掉orderby相关的数据
     for (auto *f : condition_filters) {
         for (size_t i = 0; i < left_set.tuples().size(); i++) {
             if (!f->filter_tuple(left_set.tuples()[i])) {
@@ -324,13 +326,16 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
             }
         }
     }
-    // 再过滤列，删除projection相关
-    //left_set.erase_projection();
-    result_tupleset.emplace_back(std::move(left_set));
+
+    real_tupleset = std::move(left_set);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    result_tupleset.emplace_back(std::move(tuple_sets.front()));
+    real_tupleset = std::move(tuple_sets.front());
   }
+
+  // step2.最终我们需要把答案放在result_tupleset中
+  real_tupleset.groupBy(selects.groups, selects.group_num, result_tupleset);
+
   return rc;
 }
 
@@ -447,6 +452,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
+      /*--------------------DEBUG--------------------------*/
       std::stringstream ss;
       if(tuple_sets.size() > 1) {
         result_tupleset.front().print(ss, true);
@@ -455,6 +461,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         result_tupleset.front().print(ss, false);
       }
       LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
+      /*--------------------DEBUG--------------------------*/
       // 最终这里需要把数据聚合到一张表中
       real_result.add_tupleset(std::move(item));
     }
@@ -465,7 +472,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // step5: order by,最终数据会存储在result_tupleset的第一项
   result_tupleset.front().orderBy(selects.orders, selects.order_num);
 
-  // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉
+  // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
 
   end_trx_if_need(session, trx, true);
@@ -608,7 +615,16 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   }
   
   // step4. group by
-  // null
+  auto group_by = selects.groups;
+  for (size_t i = 0; i < selects.group_num; i++) {
+    auto attr = group_by->group_attr;
+    if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+      RC rc = schema_add_field_projection(table, attr.attribute_name, schema);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+  }
 
   std::stringstream output;
   schema.print(output);

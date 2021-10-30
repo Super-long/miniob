@@ -292,6 +292,70 @@ void TupleSet::orderBy(const OrderBy *orders, size_t order_num) {
     });
 }
 
+OrderBy* group2order(const GroupBy* groups, size_t group_num) {
+  // 其实做成智能指针更好
+  OrderBy *temp_order = new OrderBy[MAX_NUM];
+  for (size_t i = 0; i < group_num; i++) {
+    temp_order[i].order_attr = groups[i].group_attr;
+    temp_order[i].reverse = false;
+  }
+  return temp_order;
+}
+
+void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<TupleSet>& result_tupleset) {
+  if(0 == group_num) {
+    // 不需要group_by的时候把自己放到 result_tupleset 去
+    result_tupleset.emplace_back(std::move(*this));
+    return;
+  }
+  result_tupleset.clear();
+
+  // step1: 先排序
+  OrderBy* order_ = group2order(groups, group_num);
+  orderBy(order_, group_num);
+
+  // step2: 然后把我们需要的那N列相同值的放到一个tupleset放到result_tupleset
+  int index = 0;
+  while (index < tuples_.size()) {
+    TupleSet temp_tuples;
+    // 取不同的第一个tuple
+    temp_tuples.add(std::move(tuples_[index++]));
+
+    while(index < tuples_.size()) {
+      // 取与上一个tuple不一样的下一个tuple
+      auto& group_tuple = tuples_[index];
+      int ret = 0;
+      for (size_t i = 0; i < group_num; i++) {
+        int attr_index = schema_.index_of_field(groups[index].group_attr.relation_name, groups[index].group_attr.attribute_name);
+        if (attr_index == -1) {
+          LOG_ERROR("Unexpected %s:%s", groups[index].group_attr.relation_name, groups[index].group_attr.attribute_name);
+        }
+        ret = group_tuple.get(attr_index).compare(temp_tuples.get(0).get(attr_index));
+        // 有一项field不一样
+        if (ret != 0) {
+          break;
+        }
+      }
+      // 证明group_num个值都与 temp_tuples 第一项相同
+      if (ret == 0) {
+        temp_tuples.add(std::move(group_tuple));
+        index++;
+      } else {
+        // 这一项和已有的不相同，应该作为下一次的第一项
+        result_tupleset.emplace_back(std::move(temp_tuples));
+        break;
+      }
+    }
+    // 3333这种情况需要在跳出上面循环以后把temp_tuples插入result_tupleset
+    if (index >= tuples_.size()) {
+      result_tupleset.emplace_back(std::move(temp_tuples));
+    }
+  }
+  
+  delete[] order_;
+  return;
+}
+
 
 void TupleSet::erase_projection() {
   auto schema_fields = schema_.fields();

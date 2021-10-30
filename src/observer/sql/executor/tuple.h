@@ -152,7 +152,8 @@ public:
 
   void print(std::ostream &os, bool multi) const;
 
-  void orderBy(const OrderBy *orders, size_t order_num);
+  void orderBy(const OrderBy* orders, size_t order_num);
+  void groupBy(const GroupBy* groups, size_t group_num ,std::vector<TupleSet>& result_tupleset);
 
 public:
   const TupleSchema &schema() const {
