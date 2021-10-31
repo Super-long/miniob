@@ -63,7 +63,7 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
 void AggregationNode::add_table(Table * table) {
     // 不考虑可能重复的情况
     TupleSchema::from_table(table, *result_schema);
-    for (size_t i = 0; i < table->table_meta().field_num(); i++) {
+    for (size_t i = 0; i < result_schema->fields().size(); i++) {
         tuple.add(0);
     }
 }
@@ -219,7 +219,9 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
 
     // step1:我们在聚合中其实只生成了一个tuple，其中聚合部分有值，其他地方为填充值
       temp_tuple.set_schema(*result_schema);
-
+    std::stringstream ss;
+    tuple.print(ss);
+    LOG_DEBUG("%s", ss.str().c_str());
     // step2:通过tuples的每一行去生成我们需要的行，需要填充的地方进行填充，聚合就直接拷贝，共享智能指针
     // 获取fields中我们需要拿数据的列，通过判断table_name为空来判断是否是聚合字段
     auto fields = result_schema->fields();

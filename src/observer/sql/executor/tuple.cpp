@@ -28,6 +28,13 @@ Tuple::Tuple(const Tuple &other) {
 Tuple::Tuple(Tuple &&other) noexcept : values_(std::move(other.values_)) {
 }
 
+void Tuple::print(std::ostream &os) const {
+    for (int i = 0 ; i < values_.size(); i++) {
+        os << values_[i]->to_string() << " ";
+    }
+    os << "\n";
+}
+
 Tuple & Tuple::operator=(Tuple &&other) noexcept {
   if (&other == this) {
     return *this;

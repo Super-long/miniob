@@ -460,14 +460,14 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
         end_trx_if_need(session, trx, false);
       }
       /*--------------------DEBUG--------------------------*/
-      std::stringstream ss;
-      if(tuple_sets.size() > 1) {
-        result_tupleset.front().print(ss, true);
-      } else {
-        // 当前只查询一张表，直接返回结果即可
-        result_tupleset.front().print(ss, false);
-      }
-      LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
+      // std::stringstream ss;
+      // if(tuple_sets.size() > 1) {
+      //   // result_tupleset.front().print(ss, true);
+      // } else {
+      //   // 当前只查询一张表，直接返回结果即可
+      //   result_tupleset.front().print(ss, false);
+      // }
+      // LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
       /*--------------------DEBUG--------------------------*/
       // 最终这里需要把数据聚合到一张表中
       real_result.add_tupleset(std::move(item));
@@ -639,7 +639,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   // step4. group by
   auto group_by = selects.groups;
   for (size_t i = 0; i < selects.group_num; i++) {
-    auto attr = group_by->group_attr;
+    auto attr = group_by[i].group_attr;
     if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
       RC rc = schema_add_field_projection(table, attr.attribute_name, schema);
       if (rc != RC::SUCCESS) {

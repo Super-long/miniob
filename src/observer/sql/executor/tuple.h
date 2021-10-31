@@ -60,6 +60,8 @@ public:
     return values_[index];
   }
 
+  void print(std::ostream &os) const;
+
 private:
   std::vector<std::shared_ptr<TupleValue>>  values_;
 };
@@ -81,8 +83,6 @@ public:
   const char *field_name() const {
     return field_name_.c_str();
   }
-  void set_agg() {is_agg = true;}
-  bool get_agg() {return is_agg;}
 
   std::string to_string() const;
   void set_projection() {is_projection = true;}
