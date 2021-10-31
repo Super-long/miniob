@@ -61,7 +61,11 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
 }
 
 void AggregationNode::add_table(Table * table) {
+    // 不考虑可能重复的情况
     TupleSchema::from_table(table, *result_schema);
+    for (size_t i = 0; i < table->table_meta().field_num(); i++) {
+        tuple.add(0);
+    }
 }
 
 RC AggregationNode::execute(TupleSet &tuple_set) {
@@ -82,7 +86,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "count(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             LOG_DEBUG("agg count field display {%s}", field_name.c_str());
-            result_schema->add(AttrType::INTS, "", field_name.c_str());
+            result_schema->add_agg(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
             res = Tuple();
             res.add(count);
@@ -93,12 +97,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             /* assert !need_all */
             field_name = "max(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(attr_type, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(attr_type, "", field_name.c_str());
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -120,12 +119,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         case AGG_T::AGG_MIN: {
             field_name = "min(" +(need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(attr_type, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(attr_type, "", field_name.c_str());
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -149,12 +143,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             // only support for int / float
             field_name = "avg(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(FLOATS, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(FLOATS, "", field_name.c_str());
             res = Tuple();
             auto *sum = new FloatValue(0);
             if (value_) {
@@ -224,11 +213,6 @@ AggregationNode::~AggregationNode() {
     delete value_;
 }
 
-// void AggregationNode::finish() {
-//     result_set->add(std::move(tuple));
-//     result_set->set_schema(*result_schema);
-// }
-
 void AggregationNode::get_result_tuple(TupleSet& tuples) {
     // 我们需要在tuples中找到前面生成的field对应的项，然后生成结果
     TupleSet temp_tuple;
@@ -249,7 +233,8 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
           Tuple tuple_;
           // 遍历这个tuple的的每一个field
           for (size_t j = 0; j < fields.size(); j++) {
-              if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
+              // 当field中agg为true的时候我们去取聚合的值，否则拿tuple中的值
+              if (!fields[j].get_agg()) {
                 auto table_name = fields[j].table_name();
                 if (!table_name || strcmp(table_name, "") == 0) {
                   table_name = selects_->relations[0];
