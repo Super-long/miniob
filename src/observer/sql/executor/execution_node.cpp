@@ -60,6 +60,10 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
     return RC::SUCCESS;
 }
 
+void AggregationNode::add_table(Table * table) {
+    TupleSchema::from_table(table, *result_schema);
+}
+
 RC AggregationNode::execute(TupleSet &tuple_set) {
     std::string field_name;
     Tuple res;

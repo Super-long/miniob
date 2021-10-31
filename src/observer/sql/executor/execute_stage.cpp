@@ -358,7 +358,11 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
           LOG_WARN("No such field. %s.%s", table->name(), attr_item.attr.attribute_name);
           return RC::SCHEMA_FIELD_MISSING;
         }
-        agg_node->add_field(field_meta->type(), table_name, attr_item.attr.attribute_name);
+        if (strcmp("*", attr_item.attr.attribute_name)) {
+          agg_node->add_table(table);
+        } else {
+          agg_node->add_field(field_meta->type(), table_name, attr_item.attr.attribute_name);
+        }
         continue;
       }
 
@@ -400,7 +404,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
           }
       }
     }
-    // agg_node->finish();
+
     agg_node->get_result_tuple(result_tupleset);
     return RC::SUCCESS;
 }
@@ -452,16 +456,16 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
-      // /*--------------------DEBUG--------------------------*/
-      // std::stringstream ss;
-      // if(tuple_sets.size() > 1) {
-      //   result_tupleset.front().print(ss, true);
-      // } else {
-      //   // 当前只查询一张表，直接返回结果即可
-      //   result_tupleset.front().print(ss, false);
-      // }
-      // LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
-      // /*--------------------DEBUG--------------------------*/
+      /*--------------------DEBUG--------------------------*/
+      std::stringstream ss;
+      if(tuple_sets.size() > 1) {
+        result_tupleset.front().print(ss, true);
+      } else {
+        // 当前只查询一张表，直接返回结果即可
+        result_tupleset.front().print(ss, false);
+      }
+      LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
+      /*--------------------DEBUG--------------------------*/
       // 最终这里需要把数据聚合到一张表中
       real_result.add_tupleset(std::move(item));
     }
@@ -478,6 +482,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   // step5: order by,最终数据会存储在result_tupleset的第一项
   result_tupleset.front().orderBy(selects.orders, selects.order_num);
+  /*--------------------DEBUG--------------------------*/
   std::stringstream ss1;
   if(tuple_sets.size() > 1) {
     result_tupleset.front().print(ss1, true);
@@ -486,10 +491,10 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     result_tupleset.front().print(ss1, false);
   }
   LOG_DEBUG("result_tupleset:%s",ss1.str().c_str());
+  /*--------------------DEBUG--------------------------*/
+  
   // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
-
-  end_trx_if_need(session, trx, true);
 
   // step6: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
   // 目前还没写group by，我们认为 result_tupleset 只有一项
