@@ -354,16 +354,17 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
         LOG_DEBUG("attrname -> {%s}", attr_item.attr.relation_name);
         auto table_name  = attr_item.attr.relation_name ? attr_item.attr.relation_name : selects.relations[0];
         Table * table = DefaultHandler::get_default().find_table(db, table_name);
-        const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
+        if (!strcmp("*", attr_item.attr.attribute_name)) {
+          agg_node->add_table(table);
+          continue;
+        }
+         const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
+
         if (nullptr == field_meta) {
           LOG_WARN("No such field. %s.%s", table->name(), attr_item.attr.attribute_name);
           return RC::SCHEMA_FIELD_MISSING;
         }
-        if (strcmp("*", attr_item.attr.attribute_name)) {
-          agg_node->add_table(table);
-        } else {
-          agg_node->add_field(field_meta->type(), table_name, attr_item.attr.attribute_name);
-        }
+        agg_node->add_field(field_meta->type(), table_name, attr_item.attr.attribute_name);
         continue;
       }
 

@@ -67,7 +67,7 @@ private:
 class TupleField {
 public:
   TupleField(AttrType type, const char *table_name, const char *field_name, bool projection) :
-          type_(type), table_name_(table_name), field_name_(field_name), is_projection(projection){
+          type_(type), table_name_(table_name), field_name_(field_name), is_projection(projection), is_agg(false) {}){
   }
 
   AttrType  type() const{
@@ -80,6 +80,8 @@ public:
   const char *field_name() const {
     return field_name_.c_str();
   }
+  void set_agg() {is_agg = true;}
+  bool get_agg() {return is_agg;}
 
   std::string to_string() const;
   void set_projection() {is_projection = true;}
@@ -89,6 +91,7 @@ private:
   std::string table_name_;
   std::string field_name_;
   bool is_projection;       // 用于标记哪些列是可以在最后被过滤的
+  bool is_agg;              // 是否是agg
 };
 
 class TupleSchema {

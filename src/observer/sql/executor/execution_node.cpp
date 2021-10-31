@@ -62,6 +62,9 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
 
 void AggregationNode::add_table(Table * table) {
     TupleSchema::from_table(table, *result_schema);
+    for (int i = 0; i < table->table_meta().field_num(); i++) {
+        tuple.add(0);
+    }
 }
 
 RC AggregationNode::execute(TupleSet &tuple_set) {
@@ -249,7 +252,7 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
           Tuple tuple_;
           // 遍历这个tuple的的每一个field
           for (size_t j = 0; j < fields.size(); j++) {
-              if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
+              if (fields[j].get_agg()) {// 代表这个field为agg
                 auto table_name = fields[j].table_name();
                 if (!table_name || strcmp(table_name, "") == 0) {
                   table_name = selects_->relations[0];
