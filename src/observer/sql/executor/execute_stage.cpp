@@ -351,6 +351,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
         // 其实对于整个orderby来说，下面的field我们只需要生成一次，目前简化逻辑，我们每次都生成一次
         // 当遇到一个非聚合项的时候在field中插入对应的类型
         auto attr_item = selects.attributes[i].attr;
+        LOG_DEBUG("attrname -> {%s}", attr_item.attr.relation_name);
         auto table_name  = attr_item.attr.relation_name ? attr_item.attr.relation_name : selects.relations[0];
         Table * table = DefaultHandler::get_default().find_table(db, table_name);
         const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
@@ -367,6 +368,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
       }
 
       const AggInfo &agg_item = attr.attr.aggregation;
+      LOG_DEBUG("agg attrname -> {%s}", agg_item.agg_attr.attribute_name);
       if (agg_item.agg_type != AGG_NONE) {
           const Value *value = nullptr;
           if (agg_item.is_constant) {
@@ -492,7 +494,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   }
   LOG_DEBUG("result_tupleset:%s",ss1.str().c_str());
   /*--------------------DEBUG--------------------------*/
-  
+
   // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
 
