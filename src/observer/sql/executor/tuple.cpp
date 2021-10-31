@@ -28,6 +28,13 @@ Tuple::Tuple(const Tuple &other) {
 Tuple::Tuple(Tuple &&other) noexcept : values_(std::move(other.values_)) {
 }
 
+void Tuple::print(std::ostream &os) const {
+    for (int i = 0 ; i < values_.size(); i++) {
+        os << values_[i]->to_string() << " ";
+    }
+    os << "\n";
+}
+
 Tuple & Tuple::operator=(Tuple &&other) noexcept {
   if (&other == this) {
     return *this;
@@ -77,6 +84,11 @@ void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
       schema.add_if_not_exists(field_meta->type(), table_name, field_meta->name(), false);
     }
   }
+}
+
+void TupleSchema::add_agg(AttrType type, const char *table_name, const char *field_name) {
+  fields_.emplace_back(type, table_name, field_name, false);
+  fields_.back().set_agg();
 }
 
 void TupleSchema::add(AttrType type, const char *table_name, const char *field_name) {
@@ -138,20 +150,20 @@ void TupleSchema::print(std::ostream &os) const {
     return;
   }
 
-  // 判断有多张表还是只有一张表
-  std::set<std::string> table_names;
-  for (const auto &field: fields_) {
-    table_names.insert(field.table_name());
-  }
+  // // 判断有多张表还是只有一张表
+  // std::set<std::string> table_names;
+  // for (const auto &field: fields_) {
+  //   table_names.insert(field.table_name());
+  // }
 
   for (std::vector<TupleField>::const_iterator iter = fields_.begin(), end = --fields_.end();
        iter != end; ++iter) {
     os << iter->field_name() << " | ";
   }
 
-  if (table_names.size() > 1) {
-    os << fields_.back().table_name() << ".";
-  }
+  // if (table_names.size() > 1) {
+  //   os << fields_.back().table_name() << ".";
+  // }
   os << fields_.back().field_name() << std::endl;
 }
 
@@ -290,6 +302,71 @@ void TupleSet::orderBy(const OrderBy *orders, size_t order_num) {
       }
       return 0;
     });
+}
+
+OrderBy* group2order(const GroupBy* groups, size_t group_num) {
+  // 其实做成智能指针更好
+  OrderBy *temp_order = new OrderBy[MAX_NUM];
+  for (size_t i = 0; i < group_num; i++) {
+    temp_order[i].order_attr = groups[i].group_attr;
+    temp_order[i].reverse = false;
+  }
+  return temp_order;
+}
+
+void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<TupleSet>& result_tupleset) {
+  if(0 == group_num) {
+    // 不需要group_by的时候把自己放到 result_tupleset 去
+    result_tupleset.emplace_back(std::move(*this));
+    return;
+  }
+  result_tupleset.clear();
+
+  // step1: 先排序
+  OrderBy* order_ = group2order(groups, group_num);
+  orderBy(order_, group_num);
+
+  // step2: 然后把我们需要的那N列相同值的放到一个tupleset放到result_tupleset
+  int index = 0;
+  while (index < tuples_.size()) {
+    TupleSet temp_tuples;
+    temp_tuples.set_schema(schema_);
+    // 取不同的第一个tuple
+    temp_tuples.add(std::move(tuples_[index++]));
+
+    while(index < tuples_.size()) {
+      // 取与上一个tuple不一样的下一个tuple
+      auto& group_tuple = tuples_[index];
+      int ret = 0;
+      for (size_t i = 0; i < group_num; i++) {
+        int attr_index = schema_.index_of_field(groups[i].group_attr.relation_name, groups[i].group_attr.attribute_name);
+        if (attr_index == -1) {
+          LOG_ERROR("Unexpected %s:%s", groups[i].group_attr.relation_name, groups[i].group_attr.attribute_name);
+        }
+        ret = group_tuple.get(attr_index).compare(temp_tuples.get(0).get(attr_index));
+        // 有一项field不一样
+        if (ret != 0) {
+          break;
+        }
+      }
+      // 证明group_num个值都与 temp_tuples 第一项相同
+      if (ret == 0) {
+        temp_tuples.add(std::move(group_tuple));
+        index++;
+      } else {
+        // 这一项和已有的不相同，应该作为下一次的第一项
+        result_tupleset.emplace_back(std::move(temp_tuples));
+        break;
+      }
+    }
+    // 3333这种情况需要在跳出上面循环以后把temp_tuples插入result_tupleset
+    if (index >= tuples_.size()) {
+      result_tupleset.emplace_back(std::move(temp_tuples));
+    }
+  }
+  
+  delete[] order_;
+  return;
 }
 
 

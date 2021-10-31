@@ -127,6 +127,12 @@ void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse) {
   selects->order_num++;
 }
 
+void selects_append_groupby(Selects *selects, RelAttr *groupby) {
+  GroupBy *group= &selects->groups[selects->group_num];
+  group->group_attr = *groupby;
+  selects->group_num++;
+}
+
 void selects_append_conditions(Selects *selects, Condition conditions[], size_t condition_num) {
   assert(condition_num <= sizeof(selects->conditions)/sizeof(selects->conditions[0]));
   for (size_t i = 0; i < condition_num; i++) {

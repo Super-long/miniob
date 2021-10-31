@@ -70,7 +70,7 @@ public:
 
     RC execute(TupleSet &tuple_set) override;
     RC add_field(AttrType type, const char *table_name, const char *field_name);
-    // void finish();
+    void add_table(Table * table);
     void get_result_tuple(TupleSet& tuples);
 
 private:

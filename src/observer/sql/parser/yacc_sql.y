@@ -110,6 +110,7 @@ ParserContext *get_context(yyscan_t scanner)
         GE
         NE
         ORDER
+        GROUP
         BY
         ASC
 
@@ -344,7 +345,7 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr_list FROM ID rel_list where order_by SEMICOLON
+    SELECT select_attr_list FROM ID rel_list where group_by order_by SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
@@ -402,18 +403,27 @@ order_attr:
 			selects_append_orderby(&CONTEXT->ssql->sstr.selection, &attr, 1);
   }
   ;
-// group_by:
-//   /*empty*/
-//   | ORDER BY group_attr_list {
-//   }
-//   ;
-// group_attr_list:
-//   /*empty*/
-//   | order_attr_list COMMA order_attr {
-//   }
-//   ;
-// group_attr:
-//   ;
+group_by:
+  /*empty*/
+  | GROUP BY group_attr_list {
+  }
+group_attr_list:
+  group_attr {
+  }
+  | group_attr_list COMMA group_attr {
+  }
+group_attr:
+  ID {
+			RelAttr attr;
+			relation_attr_init(&attr, NULL, $1);
+			selects_append_groupby(&CONTEXT->ssql->sstr.selection, &attr);
+  }
+  | ID DOT ID {
+			RelAttr attr;
+			relation_attr_init(&attr, $1, $3);
+			selects_append_groupby(&CONTEXT->ssql->sstr.selection, &attr);
+  }
+  ;
 select_attr_list:
     select_attr {
     }

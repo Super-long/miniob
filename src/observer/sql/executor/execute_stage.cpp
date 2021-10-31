@@ -275,7 +275,9 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
   // 搞成vector是为了好改group by
   std::stringstream ss;
   RC rc = RC::SUCCESS;
+  TupleSet real_tupleset;
 
+  // step1.我们这里对把聚合后的结果（无论单表还是多表）扔在 real_tupleset 中
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
     auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
@@ -315,7 +317,7 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
         }
     }
 
-    // 先过滤行
+    // 先过滤行，列过滤放在orderby之后，为了滤掉orderby相关的数据
     for (auto *f : condition_filters) {
         for (size_t i = 0; i < left_set.tuples().size(); i++) {
             if (!f->filter_tuple(left_set.tuples()[i])) {
@@ -324,13 +326,16 @@ RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &se
             }
         }
     }
-    // 再过滤列，删除projection相关
-    //left_set.erase_projection();
-    result_tupleset.emplace_back(std::move(left_set));
+
+    real_tupleset = std::move(left_set);
   } else {
     // 当前只查询一张表，直接返回结果即可
-    result_tupleset.emplace_back(std::move(tuple_sets.front()));
+    real_tupleset = std::move(tuple_sets.front());
   }
+
+  // step2.最终我们需要把答案放在result_tupleset中
+  real_tupleset.groupBy(selects.groups, selects.group_num, result_tupleset);
+
   return rc;
 }
 
@@ -346,9 +351,15 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
         // 其实对于整个orderby来说，下面的field我们只需要生成一次，目前简化逻辑，我们每次都生成一次
         // 当遇到一个非聚合项的时候在field中插入对应的类型
         auto attr_item = selects.attributes[i].attr;
+        LOG_DEBUG("attrname -> {%s}", attr_item.attr.relation_name);
         auto table_name  = attr_item.attr.relation_name ? attr_item.attr.relation_name : selects.relations[0];
         Table * table = DefaultHandler::get_default().find_table(db, table_name);
-        const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
+        if (!strcmp("*", attr_item.attr.attribute_name)) {
+          agg_node->add_table(table);
+          continue;
+        }
+         const FieldMeta *field_meta = table->table_meta().field(attr_item.attr.attribute_name);
+
         if (nullptr == field_meta) {
           LOG_WARN("No such field. %s.%s", table->name(), attr_item.attr.attribute_name);
           return RC::SCHEMA_FIELD_MISSING;
@@ -358,6 +369,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
       }
 
       const AggInfo &agg_item = attr.attr.aggregation;
+      LOG_DEBUG("agg attrname -> {%s}", agg_item.agg_attr.attribute_name);
       if (agg_item.agg_type != AGG_NONE) {
           const Value *value = nullptr;
           if (agg_item.is_constant) {
@@ -395,7 +407,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
           }
       }
     }
-    // agg_node->finish();
+
     agg_node->get_result_tuple(result_tupleset);
     return RC::SUCCESS;
 }
@@ -447,16 +459,25 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
-      std::stringstream ss;
-      if(tuple_sets.size() > 1) {
-        result_tupleset.front().print(ss, true);
-      } else {
-        // 当前只查询一张表，直接返回结果即可
-        result_tupleset.front().print(ss, false);
-      }
-      LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
+      /*--------------------DEBUG--------------------------*/
+      // std::stringstream ss;
+      // if(tuple_sets.size() > 1) {
+      //   // result_tupleset.front().print(ss, true);
+      // } else {
+      //   // 当前只查询一张表，直接返回结果即可
+      //   result_tupleset.front().print(ss, false);
+      // }
+      // LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
+      /*--------------------DEBUG--------------------------*/
       // 最终这里需要把数据聚合到一张表中
       real_result.add_tupleset(std::move(item));
+    }
+    result_tupleset.clear();
+    result_tupleset.emplace_back(std::move(real_result));
+  } else {
+    TupleSet real_result;
+    for (int i = 0; i < result_tupleset.size(); i++) {
+      real_result.add_tupleset(std::move(result_tupleset[i]));
     }
     result_tupleset.clear();
     result_tupleset.emplace_back(std::move(real_result));
@@ -464,11 +485,19 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   // step5: order by,最终数据会存储在result_tupleset的第一项
   result_tupleset.front().orderBy(selects.orders, selects.order_num);
+  /*--------------------DEBUG--------------------------*/
+  std::stringstream ss1;
+  if(tuple_sets.size() > 1) {
+    result_tupleset.front().print(ss1, true);
+  } else {
+    // 当前只查询一张表，直接返回结果即可
+    result_tupleset.front().print(ss1, false);
+  }
+  LOG_DEBUG("result_tupleset:%s",ss1.str().c_str());
+  /*--------------------DEBUG--------------------------*/
 
-  // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉
+  // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
-
-  end_trx_if_need(session, trx, true);
 
   // step6: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
   // 目前还没写group by，我们认为 result_tupleset 只有一项
@@ -608,7 +637,16 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   }
   
   // step4. group by
-  // null
+  auto group_by = selects.groups;
+  for (size_t i = 0; i < selects.group_num; i++) {
+    auto attr = group_by[i].group_attr;
+    if (nullptr == attr.relation_name || 0 == strcmp(table_name, attr.relation_name)) {
+      RC rc = schema_add_field_projection(table, attr.attribute_name, schema);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+  }
 
   std::stringstream output;
   schema.print(output);

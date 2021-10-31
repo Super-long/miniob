@@ -60,6 +60,14 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
     return RC::SUCCESS;
 }
 
+void AggregationNode::add_table(Table * table) {
+    // 不考虑可能重复的情况
+    TupleSchema::from_table(table, *result_schema);
+    for (size_t i = 0; i < result_schema->fields().size(); i++) {
+        tuple.add(0);
+    }
+}
+
 RC AggregationNode::execute(TupleSet &tuple_set) {
     std::string field_name;
     Tuple res;
@@ -78,7 +86,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             field_name = "count(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
             LOG_DEBUG("agg count field display {%s}", field_name.c_str());
-            result_schema->add(AttrType::INTS, "", field_name.c_str());
+            result_schema->add_agg(AttrType::INTS, "", field_name.c_str());
             count = tuple_set.size();
             res = Tuple();
             res.add(count);
@@ -89,12 +97,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             /* assert !need_all */
             field_name = "max(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(attr_type, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(attr_type, "", field_name.c_str());
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -116,12 +119,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
         case AGG_T::AGG_MIN: {
             field_name = "min(" +(need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(attr_type, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(attr_type, "", field_name.c_str());
             res = Tuple();
             if (value_) {
                 res.add(value_);
@@ -145,12 +143,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             // only support for int / float
             field_name = "avg(" + (need_table_name_ && table_name_? std::string(table_name_)+ ".":std::string("")) +
               (attr_name_ ? attr_name_ : value_->to_string().c_str())+ ")";
-            result_schema->add(FLOATS, "", field_name.c_str());
-            // if (tuple_set.is_empty()) {
-            //     tuple_set.clear();
-            //     tuple_set.set_schema(result_set->get_schema());
-            //     break;
-            // }
+            result_schema->add_agg(FLOATS, "", field_name.c_str());
             res = Tuple();
             auto *sum = new FloatValue(0);
             if (value_) {
@@ -220,18 +213,15 @@ AggregationNode::~AggregationNode() {
     delete value_;
 }
 
-// void AggregationNode::finish() {
-//     result_set->add(std::move(tuple));
-//     result_set->set_schema(*result_schema);
-// }
-
 void AggregationNode::get_result_tuple(TupleSet& tuples) {
     // 我们需要在tuples中找到前面生成的field对应的项，然后生成结果
     TupleSet temp_tuple;
 
     // step1:我们在聚合中其实只生成了一个tuple，其中聚合部分有值，其他地方为填充值
       temp_tuple.set_schema(*result_schema);
-
+    std::stringstream ss;
+    tuple.print(ss);
+    LOG_DEBUG("%s", ss.str().c_str());
     // step2:通过tuples的每一行去生成我们需要的行，需要填充的地方进行填充，聚合就直接拷贝，共享智能指针
     // 获取fields中我们需要拿数据的列，通过判断table_name为空来判断是否是聚合字段
     auto fields = result_schema->fields();
@@ -245,7 +235,8 @@ void AggregationNode::get_result_tuple(TupleSet& tuples) {
           Tuple tuple_;
           // 遍历这个tuple的的每一个field
           for (size_t j = 0; j < fields.size(); j++) {
-              if (selects_->attributes[j].type != SELECT_ATTR_AGG) {
+              // 当field中agg为true的时候我们去取聚合的值，否则拿tuple中的值
+              if (!fields[j].get_agg()) {
                 auto table_name = fields[j].table_name();
                 if (!table_name || strcmp(table_name, "") == 0) {
                   table_name = selects_->relations[0];
