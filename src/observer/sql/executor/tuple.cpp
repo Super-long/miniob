@@ -79,6 +79,11 @@ void TupleSchema::from_table(const Table *table, TupleSchema &schema) {
   }
 }
 
+void TupleSchema::add_agg(AttrType type, const char *table_name, const char *field_name) {
+  fields_.emplace_back(type, table_name, field_name, false);
+  fields_.back().set_agg();
+}
+
 void TupleSchema::add(AttrType type, const char *table_name, const char *field_name) {
   fields_.emplace_back(type, table_name, field_name, false);
 }
