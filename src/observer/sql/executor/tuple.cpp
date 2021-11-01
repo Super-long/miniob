@@ -274,6 +274,18 @@ RC TupleSet::add_tupleset(TupleSet&& tuple_set) {
   return SUCCESS;
 }
 
+RC TupleSet::add_tupleset_oneline(TupleSet&& tuple_set) {
+  auto &tuple_set_ = tuple_set.tuples();
+
+  if (schema_.fields().size() == 0) {
+    set_schema(tuple_set.get_schema());
+  }
+  // 做一个过滤，group by的情况下我们只需要第一行
+  assert(tuple_set_.size() > 0);
+  add(std::move(const_cast<Tuple&&>(tuple_set_[0])));
+  return SUCCESS;
+}
+
 const std::vector<Tuple> &TupleSet::tuples() const {
   return tuples_;
 }

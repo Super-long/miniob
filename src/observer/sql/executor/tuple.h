@@ -147,6 +147,7 @@ public:
 
   void add(Tuple && tuple);
   RC add_tupleset(TupleSet&& tuple_set);
+  RC add_tupleset_oneline(TupleSet&& tuple_set);
 
   void clear();
 
