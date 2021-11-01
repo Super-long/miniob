@@ -49,13 +49,23 @@ RC UniqueIndex::close() {
 
 RC UniqueIndex::insert_entry(const char *record, const RID *rid) {
   RID is_unique_rid;
-  RC rc = index_handler_.get_entry(record, &is_unique_rid);
-  // 没找到对应的值
-  if (rc == RC::RECORD_INVALID_KEY) {
+  // TODO：因为我修改了get_entry中的comparekey，所以在但是其实rollback中我们需要rid的比较，所以多列所以需要重新实现get_entry
+  RC rc = index_handler_.get_entry(record + field_meta_.offset(), &is_unique_rid);
+  if (rc != RC::SUCCESS) {
     return index_handler_.insert_entry(record + field_meta_.offset(), rid);
   }
   // 反之找到对应的值，那我们应该返回错误
   return RC::RECORD_INVALID_KEY;
+}
+
+RC UniqueIndex::delete_entry(const char *record, const RID *rid) {
+  // 在某一个索引插入失败的时候会调用delete_entry
+  return index_handler_.delete_entry(record + field_meta_.offset(), rid);
+}
+
+IndexScanner *UniqueIndex::create_scanner(CompOp comp_op, const char *value) {
+  LOG_DEBUG("Pay attention here！ERROR in UniqueIndex::create_scanner");
+  return nullptr;
 }
 
 RC UniqueIndex::sync() {

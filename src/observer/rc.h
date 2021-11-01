@@ -172,6 +172,11 @@ enum RCAuth {
   USER = 1,
 };
 
+enum IndexType {
+  TypeBPlusTreeIndex = 0,
+  TypeUniqueIndex,
+};
+
 enum RC {
 
   SUCCESS = 0, /* Successful result */

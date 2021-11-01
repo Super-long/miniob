@@ -186,6 +186,11 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
       return strncmp(s1, s2, attr_length);
     }
       break;
+    case DATES: {
+      s1 = pdata;
+      s2 = pkey;
+      return strncmp(s1, s2, attr_length);
+    }
     default:{
       LOG_PANIC("Unknown attr type: %d", attr_type);
     }
@@ -214,10 +219,13 @@ RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
     return rc;
   }
 
+  // 把root page的数据拿出来
   rc = disk_buffer_pool_->get_data(&page_handle, &pdata);
   if(rc!=SUCCESS){
     return rc;
   }
+
+  // 拿到一个索引节点
   node = get_index_node(pdata);
   while(0 == node->is_leaf){
     for(i = 0; i < node->key_num; i++){
@@ -852,7 +860,7 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
   }
 }
 
-RC BplusTreeHandler::get_entry(const char *pkey,RID *rid) {
+RC BplusTreeHandler::get_entry(const char *pkey, RID *rid) {
   RC rc;
   PageNum leaf_page;
   BPPageHandle page_handle;
@@ -865,9 +873,13 @@ RC BplusTreeHandler::get_entry(const char *pkey,RID *rid) {
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
+  // 用某一项的key对应着一个RID
+  LOG_DEBUG("record data {%s} {%d}", pkey, file_header_.key_length);
   memcpy(key,pkey,file_header_.attr_length);
   memcpy(key+file_header_.attr_length,rid,sizeof(RID));
+  LOG_DEBUG("key data {%s}", key);
 
+  // 我们把record data和RID做为key去搜索我们需要的值
   rc=find_leaf(key,&leaf_page);
   if(rc!=SUCCESS){
     free(key);
@@ -886,13 +898,25 @@ RC BplusTreeHandler::get_entry(const char *pkey,RID *rid) {
   }
 
   leaf = get_index_node(pdata);
+  // for(i=0;i<leaf->key_num;i++){
+  //   // 比较的时候也会使用record和RID，看起来是把key使用 file_header_.attr_type, file_header_.attr_length 解释
+  //   if(CmpKey(file_header_.attr_type, file_header_.attr_length,key,leaf->keys+(i*file_header_.key_length))==0){
+  //     memcpy(rid,leaf->rids+i,sizeof(RID));
+  //     free(key);
+  //     return SUCCESS;
+  //   }
+  // }
   for(i=0;i<leaf->key_num;i++){
-    if(CmpKey(file_header_.attr_type, file_header_.attr_length,key,leaf->keys+(i*file_header_.key_length))==0){
+    // 我们希望在比较的时候只看key,而不看RID相关
+    if(CompareKey(key, leaf->keys+(i*file_header_.key_length), file_header_.attr_type, file_header_.attr_length) == 0) {
+      LOG_DEBUG("leaf->data {%s}", leaf->keys+(i*file_header_.key_length));
+      // 显然如果我们找到相同的key的话返回success
       memcpy(rid,leaf->rids+i,sizeof(RID));
       free(key);
       return SUCCESS;
     }
   }
+
   free(key);
   return RC::RECORD_INVALID_KEY;
 }

@@ -14,9 +14,9 @@ public:
   RC close();
 
   RC insert_entry(const char *record, const RID *rid) override;
-  // 目前来看不需要考虑删除
-  //RC delete_entry(const char *record, const RID *rid) override;
+  RC delete_entry(const char *record, const RID *rid) override;
 
+  IndexScanner *create_scanner(CompOp comp_op, const char *value) override;
   RC sync() override;
 
 private:
