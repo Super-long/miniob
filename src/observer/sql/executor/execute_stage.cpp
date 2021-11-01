@@ -350,7 +350,7 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
       //   break;
       // }
 
-    for (int i = 0; i < selects.attr_num; ++i) {
+    for (size_t i = 0; i < selects.attr_num; ++i) {
       const auto &attr = attrs[i];
       if (attr.type != SELECT_ATTR_AGG) {
         // 其实对于整个orderby来说，下面的field我们只需要生成一次，目前简化逻辑，我们每次都生成一次
@@ -479,7 +479,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
     result_tupleset.emplace_back(std::move(real_result));
   } else {
     TupleSet real_result;
-    for (int i = 0; i < result_tupleset.size(); i++) {
+    for (size_t i = 0; i < result_tupleset.size(); i++) {
       real_result.add_tupleset(std::move(result_tupleset[i]));
     }
     result_tupleset.clear();
@@ -569,7 +569,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   LOG_DEBUG("create_selection_executor->table_name : {%s}", table_name);
 
   // step1. normal attr
-  for (int i = 0; i < selects.attr_num; i++) {
+  for (size_t i = 0; i < selects.attr_num; i++) {
     const SelectAttr &select_item = selects.attributes[i];
     if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_AGG) {
       continue;
@@ -603,7 +603,7 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   }
 
   // step2. aggregation
-  for (int i = 0; i < selects.attr_num; i++) {
+  for (size_t i = 0; i < selects.attr_num; i++) {
     const SelectAttr &select_item = selects.attributes[i];
     if (select_item.type == SELECT_ATTR_T::SELECT_ATTR_ATTR) {
       continue;

@@ -57,7 +57,7 @@ TEST(test_bp_manager, test_bp_manager_simple_lru) {
 }
 
 TEST(test_bp_manager, test_simple_disk_buffer_pool) {
-  constexpr char* file_name = "bp_manger_miniob_test";
+  const char* file_name = "bp_manger_miniob_test";
   auto disk_buffer_pool = new DiskBufferPool(2);
   RC ret = disk_buffer_pool->create_file(file_name);
   int file_id = -1;
@@ -70,7 +70,7 @@ TEST(test_bp_manager, test_simple_disk_buffer_pool) {
   Frame* frame1 = page_handle1.frame;
   // 注意我们只需要去赋值page_num就可以了，其他的基础量已经在allocate_page中赋值过了
   frame1->page.page_num = 1;
-  memcpy(frame1->page.data, "bp_manger_miniob_test:frame1", 30);
+  memcpy(frame1->page.data, "bp_manger_miniob_test:frame1", 29);
   frame1->dirty = true;
   ASSERT_NE(frame1, nullptr);
 

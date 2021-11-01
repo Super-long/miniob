@@ -29,7 +29,7 @@ Tuple::Tuple(Tuple &&other) noexcept : values_(std::move(other.values_)) {
 }
 
 void Tuple::print(std::ostream &os) const {
-    for (int i = 0 ; i < values_.size(); i++) {
+    for (size_t i = 0 ; i < values_.size(); i++) {
         os << values_[i]->to_string() << " ";
     }
     os << "\n";
@@ -268,7 +268,7 @@ RC TupleSet::add_tupleset(TupleSet&& tuple_set) {
     set_schema(tuple_set.get_schema());
   }
   auto len = tuple_set_.size();
-  for (int i = 0; i < len; ++i) {
+  for (size_t i = 0; i < len; ++i) {
     add(std::move(const_cast<Tuple&&>(tuple_set_[i])));
   }
   return SUCCESS;
@@ -298,7 +298,7 @@ void TupleSet::remove(int index) {
 void TupleSet::orderBy(const OrderBy *orders, size_t order_num) {
     std::sort(tuples_.begin(), tuples_.end(),[&](const Tuple& left, const Tuple& right)->bool {
       int ret = 0;
-      for (int i = 0; i < order_num; i++) {
+      for (size_t i = 0; i < order_num; i++) {
         auto attr_index = schema_.index_of_field(orders[i].order_attr.relation_name, orders[i].order_attr.attribute_name);
         if (attr_index == -1) {
           LOG_ERROR("Unexpected %s:%s", orders[i].order_attr.relation_name, orders[i].order_attr.attribute_name);
@@ -340,7 +340,7 @@ void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<Tupl
   orderBy(order_, group_num);
 
   // step2: 然后把我们需要的那N列相同值的放到一个tupleset放到result_tupleset
-  int index = 0;
+  size_t index = 0;
   while (index < tuples_.size()) {
     TupleSet temp_tuples;
     temp_tuples.set_schema(schema_);
@@ -396,10 +396,10 @@ void TupleSet::erase_projection() {
   LOG_DEBUG("schema display before : %s", ss.str().c_str());
 
   // 💩 满天飞
-  for (int i = 0; i < schema_fields.size(); ++i) {
+  for (size_t i = 0; i < schema_fields.size(); ++i) {
     if(schema_fields[i].get_projection()) {
       LOG_DEBUG("schema_fields[%d] %s", i, schema_fields[i].field_name());
-      for (int j = 0; j < tuples_.size(); ++j) {
+      for (size_t j = 0; j < tuples_.size(); ++j) {
         std::stringstream output;
         tuples_[j].get_pointer(i)->to_string(output);
         LOG_DEBUG("tuple[%d] %s", j, output.str().c_str());

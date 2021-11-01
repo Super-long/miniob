@@ -73,8 +73,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
     Tuple res;
     int max_index, min_index;
     int count = 0;
-    int attr_index;
-    AttrType attr_type;
+    int attr_index = 0;
+    AttrType attr_type = UNDEFINED;
 
     if (attr_name_!= nullptr && !need_all_) {
       attr_index = tuple_schema_.index_of_field(table_name_, attr_name_);
@@ -110,7 +110,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                   res.add(0);
                 } else {
                   max_index = 0;
-                  for (int i = 1; i < tuple_len; i++) {
+                  for (size_t i = 1; i < tuple_len; i++) {
                       if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(max_index).get(attr_index)) > 0) {
                           max_index = i;
                       }
@@ -138,7 +138,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                   res.add(0);
                 } else {
                   LOG_DEBUG("tuple_set.tuples().size() -> {%d}", tuple_len);
-                  for (int i = 1; i < tuple_len; i++) {
+                  for (size_t i = 1; i < tuple_len; i++) {
                       if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
                           min_index = i;
                       }
@@ -168,7 +168,7 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 if (!tuple_len) {
                   res.add(0);
                 } else {
-                  for (int i = 0; i < tuple_len; i++) {
+                  for (size_t i = 0; i < tuple_len; i++) {
                       switch (attr_type) {
                           case INTS:
                               sum->sumInt(tuple_set.tuples().at(i).get(attr_index));
