@@ -377,7 +377,13 @@ void TupleSet::groupBy(const GroupBy* groups, size_t group_num, std::vector<Tupl
       result_tupleset.emplace_back(std::move(temp_tuples));
     }
   }
-  
+  /* To solve empty table "No data" problem! */
+  if (!tuples_.size()) {
+    TupleSet temp_tuples;
+    temp_tuples.set_schema(schema_);
+    result_tupleset.emplace_back(std::move(temp_tuples));
+  }
+
   delete[] order_;
   return;
 }
