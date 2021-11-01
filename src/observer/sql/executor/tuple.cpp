@@ -281,8 +281,9 @@ RC TupleSet::add_tupleset_oneline(TupleSet&& tuple_set) {
     set_schema(tuple_set.get_schema());
   }
   // 做一个过滤，group by的情况下我们只需要第一行
-  assert(tuple_set_.size() > 0);
-  add(std::move(const_cast<Tuple&&>(tuple_set_[0])));
+  if(tuple_set_.size() > 0) {
+    add(std::move(const_cast<Tuple&&>(tuple_set_[0])));
+  }
   return SUCCESS;
 }
 
@@ -388,11 +389,6 @@ void TupleSet::erase_projection() {
   schema_.print(ss);
   LOG_DEBUG("schema display before : %s", ss.str().c_str());
 
-  if (tuples_.size() > 0) {
-    assert(schema_fields.size() == tuples_[0].size());
-  }
-  LOG_DEBUG("tuple.size(%d)", tuples_[0].size());
-
   // 💩 满天飞
   for (int i = 0; i < schema_fields.size(); ++i) {
     if(schema_fields[i].get_projection()) {
@@ -406,6 +402,7 @@ void TupleSet::erase_projection() {
       schema_fields.erase(schema_fields.begin() + i);
       i--;
     }
+    //LOG_DEBUG("schema_fields[%d] {%s} {%s}",i ,schema_fields[i].field_name(), schema_fields[i].get_projection());
   }
   schema_.erase_projection();
   ss.str(""); // 清空缓冲区
