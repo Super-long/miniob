@@ -105,13 +105,18 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 LOG_ERROR("Unsupported \"*\" for max");
                 return INVALID_ARGUMENT;
             } else {
-                max_index = 0;
-                for (int i = 1; i < tuple_set.tuples().size(); i++) {
-                    if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(max_index).get(attr_index)) > 0) {
-                        max_index = i;
-                    }
+                auto tuple_len = tuple_set.tuples().size();
+                if (!tuple_len) {
+                  res.add(0);
+                } else {
+                  max_index = 0;
+                  for (int i = 1; i < tuple_len; i++) {
+                      if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(max_index).get(attr_index)) > 0) {
+                          max_index = i;
+                      }
+                  }
+                  res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
                 }
-                res.add(tuple_set.tuples().at(max_index).get_pointer(attr_index));
             }
             tuple.add(res.get_pointer(0));
             break;
@@ -127,14 +132,19 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 LOG_ERROR("Unsupported \"*\" for min");
                 return INVALID_ARGUMENT;
             } else {
+                auto tuple_len = tuple_set.tuples().size();
                 min_index = 0;
-                LOG_DEBUG("tuple_set.tuples().size() -> {%d}", tuple_set.tuples().size());
-                for (int i = 1; i < tuple_set.tuples().size(); i++) {
-                    if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
-                        min_index = i;
-                    }
+                if (!tuple_len) {
+                  res.add(0);
+                } else {
+                  LOG_DEBUG("tuple_set.tuples().size() -> {%d}", tuple_len);
+                  for (int i = 1; i < tuple_len; i++) {
+                      if (tuple_set.tuples().at(i).get(attr_index).compare(tuple_set.tuples().at(min_index).get(attr_index)) < 0) {
+                          min_index = i;
+                      }
+                  }
+                  res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
                 }
-                res.add(tuple_set.tuples().at(min_index).get_pointer(attr_index));
             }
             tuple.add(res.get_pointer(0));
             break;
@@ -146,6 +156,8 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
             result_schema->add_agg(FLOATS, "", field_name.c_str());
             res = Tuple();
             auto *sum = new FloatValue(0);
+            auto tuple_len = tuple_set.tuples().size();
+
             if (value_) {
                     res.add(value_);
             } else if (need_all_) {
@@ -153,27 +165,31 @@ RC AggregationNode::execute(TupleSet &tuple_set) {
                 LOG_ERROR("Unsupported \"*\" for avg");
                 return INVALID_ARGUMENT;
             } else {
-                for (int i = 0; i < tuple_set.tuples().size(); i++) {
-                    switch (attr_type) {
-                        case INTS:
-                            sum->sumInt(tuple_set.tuples().at(i).get(attr_index));
-                            if (i == tuple_set.tuples().size()-1) {
-                                sum->div(FloatValue(tuple_set.tuples().size()));
-                                res.add(sum);
-                            }
-                            break;
-                        case FLOATS:
-                            sum->sumFloat(tuple_set.tuples().at(i).get(attr_index));
-                            if (i == tuple_set.tuples().size()-1) {
-                                sum->div(FloatValue(tuple_set.tuples().size()));
-                                res.add(sum);
-                            }
-                            break;
-                        default:
-                            LOG_ERROR("unsupported type");
-                            delete sum;
-                            return INVALID_ARGUMENT;
-                    }
+                if (!tuple_len) {
+                  res.add(0);
+                } else {
+                  for (int i = 0; i < tuple_len; i++) {
+                      switch (attr_type) {
+                          case INTS:
+                              sum->sumInt(tuple_set.tuples().at(i).get(attr_index));
+                              if (i == tuple_set.tuples().size()-1) {
+                                  sum->div(FloatValue(tuple_set.tuples().size()));
+                                  res.add(sum);
+                              }
+                              break;
+                          case FLOATS:
+                              sum->sumFloat(tuple_set.tuples().at(i).get(attr_index));
+                              if (i == tuple_set.tuples().size()-1) {
+                                  sum->div(FloatValue(tuple_set.tuples().size()));
+                                  res.add(sum);
+                              }
+                              break;
+                          default:
+                              LOG_ERROR("unsupported type");
+                              delete sum;
+                              return INVALID_ARGUMENT;
+                      }
+                  }
                 }
             }
             tuple.add(res.get_pointer(0));

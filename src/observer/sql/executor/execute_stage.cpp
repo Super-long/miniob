@@ -345,6 +345,11 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
     auto attrs = selects.attributes;
     auto *agg_node = new AggregationNode();
 
+      // if (item.tuples().size() == 0) {
+      //   real_result.add_tupleset(std::move(item));
+      //   break;
+      // }
+
     for (int i = 0; i < selects.attr_num; ++i) {
       const auto &attr = attrs[i];
       if (attr.type != SELECT_ATTR_AGG) {
