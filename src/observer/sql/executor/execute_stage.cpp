@@ -454,23 +454,21 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // 像上面这样做的话，就算我们需要去执行类似于:select count(*), max(test1.id) from test1, test2;这样的语句，其实需要的所有列都存在
   if (selects.aggregate_num > 0) {
     TupleSet real_result;
+    // 只有出现聚合的时候result_tupleset数量才有可能是多个
+    // 而且不存在 select 后不出现 group by的数据，也就是说group by一旦出现必须去重
+    // select test1.in1, count(*), max(test1.fl1) from test1 group by test1.in1;
+    // select a,agg from b group by c; c一定包含a
     for (auto& item : result_tupleset) {
       rc = execute_aggregation(item, selects, session, db, tuple_sets.size() > 1);
       if (rc != RC::SUCCESS) {
         end_trx_if_need(session, trx, false);
       }
-      /*--------------------DEBUG--------------------------*/
-      // std::stringstream ss;
-      // if(tuple_sets.size() > 1) {
-      //   // result_tupleset.front().print(ss, true);
-      // } else {
-      //   // 当前只查询一张表，直接返回结果即可
-      //   result_tupleset.front().print(ss, false);
-      // }
-      // LOG_DEBUG("result_tupleset:%s",ss.str().c_str());
-      /*--------------------DEBUG--------------------------*/
-      // 最终这里需要把数据聚合到一张表中
-      real_result.add_tupleset(std::move(item));
+      // group by的情况下做一个过滤
+      if (result_tupleset.size() > 1) {
+        real_result.add_tupleset_oneline(std::move(item));
+      } else {
+        real_result.add_tupleset(std::move(item));
+      }
     }
     result_tupleset.clear();
     result_tupleset.emplace_back(std::move(real_result));

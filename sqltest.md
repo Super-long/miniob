@@ -99,3 +99,10 @@
 
 ### group by
 1. select test1.in1, test2.in2 from test1, test2 group by test1.in1, test2.in2;
+
+### group by 
+1. select test1.in1, test2.in2, count(*), max(test2.in2) from test1, test2 group by test1.in1, test2.in2;   // y
+2. select test2.in2, test1.in1, count(*), max(test2.in2) from test1, test2 group by test1.in1, test2.in2;   // y
+3. select test1.in1, count(*), max(test1.fl1) from test1 group by test1.in1;                                // y
+4. select test1.in1, max(test1.fl1), max(test1.da1), count(*) from test1 group by test1.in1;                // y
+5. select test1.in1, test2.in2, count(*), max(test2.in2) from test1, test2 where test1.in1 = test2.in2 group by test1.in1, test2.in2;   // y
