@@ -180,17 +180,13 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
       return float_compare(f1, f2);
     }
       break;
+    case DATES:
     case CHARS: {
       s1 = pdata;
       s2 = pkey;
       return strncmp(s1, s2, attr_length);
     }
-      break;
-    case DATES: {
-      s1 = pdata;
-      s2 = pkey;
-      return strncmp(s1, s2, attr_length);
-    }
+
     default:{
       LOG_PANIC("Unknown attr type: %d", attr_type);
     }
@@ -1843,6 +1839,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
       f2=*(float *)value_;
       break;
     case CHARS:
+    case DATES:
       s1=pkey;
       s2=value_;
       break;
@@ -1863,6 +1860,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag= 0 == float_compare(f1, f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)==0);
           break;
         default:
@@ -1878,6 +1876,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(f1<f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)<0);
           break;
         default:
@@ -1893,6 +1892,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(f1>f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)>0);
           break;
         default:
@@ -1908,6 +1908,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(f1<=f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)<=0);
           break;
         default:
@@ -1923,6 +1924,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag=(f1>=f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)>=0);
           break;
         default:
@@ -1938,6 +1940,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
           flag= 0 != float_compare(f1, f2);
           break;
         case CHARS:
+        case DATES:
           flag=(strncmp(s1,s2,attr_length)!=0);
           break;
         default:

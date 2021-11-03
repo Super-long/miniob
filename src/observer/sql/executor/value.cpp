@@ -17,8 +17,10 @@ TupleValue *ValueToTupleValue(Value *v) {
       return new IntValue(*(int*)(v->data));
     case FLOATS:
       return new FloatValue(*(float*)(v->data));
+    case DATES:
     case CHARS:
       return new StringValue((const char*)v->data);
+
     default:
       /* unsupported */
       return nullptr;

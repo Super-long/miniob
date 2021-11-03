@@ -349,7 +349,8 @@ RC insert_record_from_file(Table *table, std::vector<std::string> &file_values,
         }
       }
       break;
-      case CHARS: {
+      case CHARS:
+      case DATES: {
         value_init_string(&record_values[i], file_value.c_str());
       }
       break;

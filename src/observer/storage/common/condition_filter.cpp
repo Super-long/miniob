@@ -309,6 +309,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
 
   int cmp_result = 0;
   switch (attr_type_) {
+    case DATES:
     case CHARS: {  // 字符串都是定长的，直接比较
       // 按照C字符串风格来定
       cmp_result = strcmp(left_value, right_value);
@@ -325,9 +326,6 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       float right = *(float *)right_value;
       cmp_result = (int)(left - right);
     } break;
-    case DATES: {
-      cmp_result = strcmp(left_value, right_value);
-    }
     default: {
     }
   }
