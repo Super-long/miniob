@@ -8,9 +8,9 @@
 * Aggregation [done] by @lzl @hzn @zzl 
 
 ## Optional Feature
-* Inner Join of Multi-Tables [planned]
+* Inner Join of Multi-Tables [ongoing] by @lzl
 * Atomic & Batch Insert of Data [done] by @lzl @hzn
-* Unique Index [ongoing] by @lzl
+* Unique Index [done] by @lzl
 * NULL Type Support [ongoing] by @zzl
 * Subquery [ongoing] by @hzn
 * Multi-Columns Index [ongoing] by @lzl
