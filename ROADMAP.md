@@ -2,7 +2,7 @@
 * BufferPool Optimization [done] by @lzl
 * Drop Table [done] by @zzl
 * Update Record [done] by @zzl
-* Date Type Support [ongoing] by @zzl @lzl @hzn
+* Date Type Support [done] by @zzl @lzl @hzn
 * Query Meta Check [done] by @zzl
 * Multi-Tables Query [done] @zzl @lzl
 * Aggregation [done] by @lzl @hzn @zzl 
