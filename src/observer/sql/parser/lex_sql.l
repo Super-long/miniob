@@ -77,6 +77,7 @@ QUOTE            [\'\"]
 [Dd][Aa][Tt][Aa]	                       RETURN_TOKEN(DATA);
 [Ii][Nn][Ff][Ii][Ll][Ee]                 RETURN_TOKEN(INFILE);
 [Dd][Aa][Tt][Ee]                         RETURN_TOKEN(DATE_T);
+[Tt][Ee][Xx][Tt]                         RETURN_TOKEN(TEXT_T);
 [Oo][Rr][Dd][Ee][Rr]                     RETURN_TOKEN(ORDER);
 [Bb][Yy]                                 RETURN_TOKEN(BY);
 [Gg][Rr][Oo][Uu][Pp]                     RETURN_TOKEN(GROUP);
