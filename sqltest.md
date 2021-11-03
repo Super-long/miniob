@@ -92,6 +92,12 @@
 2. select * from test1 where da1>'2020-1-20';                                                  // y
 3. select * from test1 where da1<'2019-12-31';                                                 // y
 
+1. insert into test4 values(5,"2019-12-21"),(6,"2016-02-29"),(7,"1970-01-01"),(8,"2000-01-01");
+2. insert into test4 values(3,"2020-01-01"),(4,"2020-01-01");
+3. select * from test4 where da > '2020-1-20';
+4. select * from test4 where da < '2019-12-31';
+5. select * from test4 where da = '2020-1-1';
+
 ### order by
 1. select * from test1 order by in1 desc;                                                     // y
 2. select * from test1, test2 where test1.in1 = test2.in2 order by test1.in1 desc;            // y

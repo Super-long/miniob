@@ -257,7 +257,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   // 但是选手们还是要实现。这个功能在预选赛中会出现
   if (type_left != type_right) {
       if ((type_left == DATES && type_right == CHARS) || (type_left == CHARS && type_right == DATES)) {
-          LOG_INFO("%s\n%s", (char *)left.value, (char *)right.value);
+          // LOG_INFO("%s\n%s", (char *)left.value, (char *)right.value);
           return init(left, right, DATES, condition.comp);
       }
     return RC::SCHEMA_FIELD_TYPE_MISMATCH;
