@@ -107,3 +107,10 @@
 5. select test1.in1, test2.in2, count(*), max(test2.in2) from test1, test2 where test1.in1 = test2.in2 group by test1.in1, test2.in2;   // y
 6. select test1.in1, test2.in2, count(*), max(test2.in2) from test1, test2 where test1.in1 > 100 group by test1.in1, test2.in2;
 7. select test1.in1, count(test1.in1) from test1, test2 where test2.in2 > 100 group by test1.in1;
+
+### unique index 
+1. create unique index index_in1 on test1(in1); 
+2. create unique index index_fl1 on test1(fl1);
+3. insert into test1 values(1,"a",1.1, "2000-10-01");
+4. insert into test1 values(7,"a",1.1, "2000-10-01");
+5. create unique index index_in2 on test2(in2);

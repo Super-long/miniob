@@ -26,6 +26,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/meta_util.h"
 #include "storage/common/index.h"
 #include "storage/common/bplus_tree_index.h"
+#include "storage/common/unique_index.h"
 #include "storage/trx/trx.h"
 
 Table::Table() : 
@@ -509,7 +510,7 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
   return inserter.insert_index(record);
 }
 
-RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_name) {
+RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_name, IndexType index_type) {
   if (index_name == nullptr || common::is_blank(index_name) ||
       attribute_name == nullptr || common::is_blank(attribute_name)) {
     return RC::INVALID_ARGUMENT;
@@ -530,14 +531,27 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
     return rc;
   }
 
-  // 创建索引相关数据
-  BplusTreeIndex *index = new BplusTreeIndex();
-  std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
-  rc = index->create(index_file.c_str(), new_index_meta, *field_meta);
-  if (rc != RC::SUCCESS) {
-    delete index;
-    LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
-    return rc;
+  Index* index = nullptr;
+  if (index_type == IndexType::TypeBPlusTreeIndex) {
+    BplusTreeIndex *BPlusTreeIndexInstance = new BplusTreeIndex();
+    std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
+    rc = BPlusTreeIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    if (rc != RC::SUCCESS) {
+      delete index;
+      LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
+      return rc;
+    }
+    index = BPlusTreeIndexInstance;
+  } else {
+    UniqueIndex *UniqueIndexInstance = new UniqueIndex();
+    std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
+    rc = UniqueIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    if (rc != RC::SUCCESS) {
+      delete index;
+      LOG_ERROR("Failed to create unique index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
+      return rc;
+    }
+    index = UniqueIndexInstance;
   }
 
   // 遍历当前的所有数据，插入这个索引
@@ -545,6 +559,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   rc = scan_record(trx, nullptr, -1, &index_inserter, insert_index_record_reader_adapter);
   if (rc != RC::SUCCESS) {
     // rollback
+    // 我们前面只是在插入索引而已，所以直接delete了索引就可以
     delete index;
     LOG_ERROR("Failed to insert index to all records. table=%s, rc=%d:%s", name(), rc, strrc(rc));
     return rc;
