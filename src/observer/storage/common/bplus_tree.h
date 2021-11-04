@@ -17,11 +17,19 @@ See the Mulan PSL v2 for more details. */
 #include "record_manager.h"
 #include "storage/default/disk_buffer_pool.h"
 #include "sql/parser/parse_defs.h"
+#include "storage/common/field_meta.h"
+
+struct FieldsAttr {
+  AttrType attr_type;
+  int attr_length;
+};
 
 struct IndexFileHeader {
   int attr_length;
   int key_length;
-  AttrType attr_type;
+  // 目前来看比较挫的做法，但是可以run
+  int attr_type_length;
+  FieldsAttr attr_types[MAX_NUM];
   PageNum root_page; // 初始时，root_page一定是1
   int node_num;
   int order;
@@ -50,13 +58,15 @@ struct Tree {
   TreeNode *root;
 };
 
+std::vector<FieldsAttr> FieldMeta2FieldsAttr(const std::vector<FieldMeta>& fields_meta);
+
 class BplusTreeHandler {
 public:
   /**
    * 此函数创建一个名为fileName的索引。
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
-  RC create(const char *file_name, AttrType attr_type, int attr_length);
+  RC create(const char *file_name, std::vector<FieldsAttr> attrs);
 
   /**
    * 打开名为fileName的索引文件。

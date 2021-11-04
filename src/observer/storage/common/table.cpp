@@ -135,16 +135,22 @@ RC Table::open(const char *meta_file, const char *base_dir) {
   const int index_num = table_meta_.index_num();
   for (int i = 0; i < index_num; i++) {
     const IndexMeta *index_meta = table_meta_.index(i);
-    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
-    if (field_meta == nullptr) {
-      LOG_PANIC("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
-                name(), index_meta->name(), index_meta->field());
-      return RC::GENERIC_ERROR;
+    std::vector<FieldMeta> fields_meta;
+    auto fields_ = index_meta->field();
+    for (auto item : fields_) {
+      auto field_meta = table_meta_.field(item.c_str());
+      if (field_meta == nullptr) {
+        LOG_PANIC("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
+                  name(), index_meta->name(), item.c_str());
+        return RC::GENERIC_ERROR;
+      }
+      fields_meta.push_back(*field_meta);
     }
+    //const FieldMeta *field_meta = table_meta_.field(index_meta->field());
 
     BplusTreeIndex *index = new BplusTreeIndex();
     std::string index_file = index_data_file(base_dir, name(), index_meta->name());
-    rc = index->open(index_file.c_str(), *index_meta, *field_meta);
+    rc = index->open(index_file.c_str(), *index_meta, fields_meta);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to open index. table=%s, index=%s, file=%s, rc=%d:%s",
@@ -510,23 +516,37 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
   return inserter.insert_index(record);
 }
 
-RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_name, IndexType index_type) {
+// 目前我们需要支持多列索引，所以这里attribute是一个数组指针
+RC Table::create_index(Trx *trx, const char *index_name, char *const attribute_name[MAX_NUM], size_t attribute_count, IndexType index_type) {
   if (index_name == nullptr || common::is_blank(index_name) ||
-      attribute_name == nullptr || common::is_blank(attribute_name)) {
+      attribute_name == nullptr) {
     return RC::INVALID_ARGUMENT;
   }
-  if (table_meta_.index(index_name) != nullptr ||
-      table_meta_.find_index_by_field((attribute_name))) {
-    return RC::SCHEMA_INDEX_EXIST;
-  }
 
-  const FieldMeta *field_meta = table_meta_.field(attribute_name);
-  if (!field_meta) {
-    return RC::SCHEMA_FIELD_MISSING;
+  for (size_t i = 0; i < attribute_count; i++) {
+    if (common::is_blank(attribute_name[i])) {
+      return RC::INVALID_ARGUMENT;
+    }
   }
+  
+  if (table_meta_.index(index_name) != nullptr ||
+      table_meta_.find_index_by_field(attribute_name, attribute_count)) {
+    return RC::SCHEMA_INDEX_EXIST;
+  } 
+
+  std::vector<FieldMeta> fields_array;
+  fields_array.reserve(attribute_count);
+  for (size_t i = 0; i < attribute_count; i++) {
+    const FieldMeta *field_meta = table_meta_.field(attribute_name[i]);
+    if (!field_meta) {
+      return RC::SCHEMA_FIELD_MISSING;
+    }
+    fields_array.emplace_back(*field_meta);
+  }
+  
 
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init(index_name, fields_array);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -535,7 +555,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   if (index_type == IndexType::TypeBPlusTreeIndex) {
     BplusTreeIndex *BPlusTreeIndexInstance = new BplusTreeIndex();
     std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
-    rc = BPlusTreeIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    rc = BPlusTreeIndexInstance->create(index_file.c_str(), new_index_meta, fields_array);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -545,7 +565,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   } else {
     UniqueIndex *UniqueIndexInstance = new UniqueIndex();
     std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
-    rc = UniqueIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    rc = UniqueIndexInstance->create(index_file.c_str(), new_index_meta, fields_array);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to create unique index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -804,7 +824,10 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     return nullptr;
   }
 
-  const IndexMeta *index_meta = table_meta_.find_index_by_field(field_meta->name());
+  // 这个垃圾代码恶心到我了，暂时这样写，写完了再说
+  char *temp_attribute_name[MAX_NUM];
+  temp_attribute_name[0] = const_cast<char*>(field_meta->name());
+  const IndexMeta *index_meta = table_meta_.find_index_by_field(temp_attribute_name, 1);
   if (nullptr == index_meta) {
     return nullptr;
   }

@@ -149,12 +149,25 @@ const IndexMeta * TableMeta::index(const char *name) const {
   return nullptr;
 }
 
-const IndexMeta * TableMeta::find_index_by_field(const char *field) const {
+// 把传入的所有字段都执行与已有index field的比较
+const IndexMeta * TableMeta::find_index_by_field(char *const attribute_name[MAX_NUM], size_t attribute_count) const {
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
+    // 所有的字段都和现有的相同
+    const std::vector<std::string>& fields_ = index.field();
+    int res = 0;
+    assert(fields_.size() == attribute_count);
+
+    for (int i = 0; i < fields_.size(); ++i) {
+      if (0 != (res = strcmp(fields_[i].c_str(), attribute_name[i]))) {
+        // 有一个不相同的话跳到下一个index比较
+        break;
+      }
+    }
+    if (0 == res) {
       return &index;
     }
   }
+  // 都没有找到一个完全一样的fields
   return nullptr;
 }
 
