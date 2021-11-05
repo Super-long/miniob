@@ -426,6 +426,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
     limit = INT_MAX;
   }
 
+  // 这里我们需要在多个条件的时候组合一个filter，也就是传入的那个CompositeConditionFilter
   IndexScanner *index_scanner = find_index_for_scan(filter);
   if (index_scanner != nullptr) {
     return scan_record_by_index(trx, index_scanner, filter, limit, context, record_reader);
@@ -837,7 +838,61 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     return nullptr;
   }
 
-  return index->create_scanner(filter.comp_op(), (const char *)value_cond_desc->value);
+  // 为了适应接口，没办法
+  std::vector<CompOp> comp_array;
+  comp_array.push_back(filter.comp_op());
+  std::vector<const char*> values_array;
+  values_array.push_back((const char *)value_cond_desc->value);
+  return index->create_scanner(comp_array, values_array);
+}
+
+IndexScanner *Table::find_index_for_scan(const CompositeConditionFilter &filter) {
+  char *temp_attribute_name[MAX_NUM];
+  std::vector<CompOp> comp_array;
+  std::vector<const char*> values_array;
+
+  for (int i = 0; i < filter.filter_num(); ++i) {
+    const ConditionFilter* default_condition_filter = &filter.filter(i);
+    const DefaultConditionFilter *item_filter = dynamic_cast<const DefaultConditionFilter *>(default_condition_filter);
+    assert(item_filter != nullptr);
+
+    const ConDesc *field_cond_desc = nullptr;
+    const ConDesc *value_cond_desc = nullptr;
+    if (item_filter->left().is_attr && !item_filter->right().is_attr) {
+      field_cond_desc = &item_filter->left();
+      value_cond_desc = &item_filter->right();
+    } else if (item_filter->right().is_attr && !item_filter->left().is_attr) {
+      field_cond_desc = &item_filter->right();
+      value_cond_desc = &item_filter->left();
+    }
+    if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
+      return nullptr;
+    }
+
+    const FieldMeta *field_meta = table_meta_.find_field_by_offset(field_cond_desc->attr_offset);
+    if (nullptr == field_meta) {
+      LOG_PANIC("Cannot find field by offset %d. table=%s",
+                field_cond_desc->attr_offset, name());
+      return nullptr;
+    }
+    
+    temp_attribute_name[i] = const_cast<char*>(field_meta->name());
+    comp_array.push_back(item_filter->comp_op());
+    values_array.push_back((const char *)value_cond_desc->value);
+  }
+  // 通过N项去找索引
+  const IndexMeta *index_meta = table_meta_.find_index_by_field(temp_attribute_name, filter.filter_num());
+  if (nullptr == index_meta) {
+    return nullptr;
+  }
+
+  Index *index = find_index(index_meta->name());
+  if (nullptr == index) {
+    return nullptr;
+  }
+
+
+  return index->create_scanner(comp_array, values_array);
 }
 
 IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
@@ -853,11 +908,17 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
 
   const CompositeConditionFilter *composite_condition_filter = dynamic_cast<const CompositeConditionFilter *>(filter);
   if (composite_condition_filter != nullptr) {
+    // 多列索引显然是最优的，如果找到直接退出就可以了
+    IndexScanner *scanner= find_index_for_scan(composite_condition_filter);
+    if (scanner != nullptr) {
+      return scanner;
+    }
+
     int filter_num = composite_condition_filter->filter_num();
     for (int i = 0; i < filter_num; i++) {
       IndexScanner *scanner= find_index_for_scan(&composite_condition_filter->filter(i));
       if (scanner != nullptr) {
-        return scanner; // 可以找到一个最优的，比如比较符号是=
+        return scanner;
       }
     }
   }

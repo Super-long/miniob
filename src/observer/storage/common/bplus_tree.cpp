@@ -1598,7 +1598,8 @@ RC BplusTreeHandler::print_tree() {
   return SUCCESS;
 }
 
-RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, PageNum *page_num, int *rididx) {
+// CompOp compop, const char *key
+RC BplusTreeHandler::find_first_index_satisfied(const std::vector<CompOp>& comp_ops, const std::vector<const char *>& value, PageNum *page_num, int *rididx) {
   BPPageHandle page_handle;
   IndexNode *node;
   PageNum leaf_page,next;
@@ -1606,6 +1607,18 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
   RC rc;
   int i,tmp;
   RID rid;
+
+  // 其实目前我们认为如果索引中有三列，where条件中至少前两个是等于号
+  // 根据最左匹配原则，我们得到第一个不是EQUAL的符号
+  CompOp compop = EQUAL_TO;
+  for (size_t i = 0; i < comp_ops.size(); i++) {
+    if (comp_ops[i] != EQUAL_TO) {
+      compop = comp_ops[i];
+      break;
+    }
+  }
+
+  // TODO：没有错，但是慢，后面再改
   if(compop == LESS_THAN || compop == LESS_EQUAL || compop == NOT_EQUAL){
     rc = get_first_leaf_page(page_num);
     if(rc != SUCCESS){
@@ -1621,7 +1634,18 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
-  memcpy(pkey, key, file_header_.attr_length);
+
+  int key_len = 0;
+  // 构建索引中的key
+  for (size_t i = 0; i < value.size(); i++) {
+    strncpy(pkey + key_len, value[i], file_header_.attr_types[i].attr_length);
+    key_len += file_header_.attr_types[i].attr_length;
+  }
+  assert(key_len == file_header_.attr_length);
+  // 临时方法
+  std::string key(pkey, key_len);
+
+  //memcpy(pkey, key, file_header_.attr_length);
   memcpy(pkey + file_header_.attr_length, &rid, sizeof(RID));
 
   rc = find_leaf(pkey, &leaf_page);
@@ -1646,7 +1670,7 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
     node = get_index_node(pdata);
     for(i = 0; i < node->key_num; i++){
       // 我们希望去比较数据，因为现在是多列，所以需要替换为CmpKeyData
-      tmp=CmpKeyData(file_header_.attr_types,file_header_.attr_type_length,node->keys+i*file_header_.key_length,key);
+      tmp=CmpKeyData(file_header_.attr_types,file_header_.attr_type_length,node->keys+i*file_header_.key_length,key.c_str());
       //tmp=CompareKey(node->keys+i*file_header_.key_length,key,file_header_.attr_type,file_header_.attr_length);
       if(compop == EQUAL_TO ||compop == GREAT_EQUAL){
         if(tmp>=0){
@@ -1737,21 +1761,33 @@ RC BplusTreeHandler::get_first_leaf_page(PageNum *leaf_page) {
 BplusTreeScanner::BplusTreeScanner(BplusTreeHandler &index_handler) : index_handler_(index_handler){
 }
 
-RC BplusTreeScanner::open(CompOp comp_op,const char *value) {
+// 因为现在是多列索引，这里传入的其实应该是多个操作和多个值，和现在的每一个value做比较
+//RC BplusTreeScanner::open(CompOp comp_op,const char *value) {
+RC BplusTreeScanner::open(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) {
   RC rc;
   if(opened_){
     return RC::RECORD_OPENNED;
   }
 
-  comp_op_ = comp_op;
+  assert(comp_op.size() == value.size());
+  assert(comp_op.size() <= MAX_NUM);
 
-  char *value_copy =(char *)malloc(index_handler_.file_header_.attr_length);
-  if(value_copy == nullptr){
-    LOG_ERROR("Failed to alloc memory for value. size=%d", index_handler_.file_header_.attr_length);
-    return RC::NOMEM;
+  value_length = comp_op.size();
+  for (int i = 0; i < comp_op.size(); ++i) {
+    comp_op_[i] = comp_op[i];
   }
-  memcpy(value_copy, value, index_handler_.file_header_.attr_length);
-  value_ = value_copy; // free value_
+
+  for (int i = 0; i < value.size(); ++i) {
+    // 显然我们知道这一项值的本身的长度
+    char *value_copy =(char *)malloc(index_handler_.file_header_.attr_types[i].attr_length);
+    if(value_copy == nullptr){
+      LOG_ERROR("Failed to alloc memory for value. size=%d", index_handler_.file_header_.attr_types[i].attr_length);
+      return RC::NOMEM;
+    }
+    memcpy(value_copy, value[i], index_handler_.file_header_.attr_types[i].attr_length);
+    value_[i] = value_copy; // free value_
+  }
+
   rc = index_handler_.find_first_index_satisfied(comp_op, value, &next_page_num_, &index_in_node_);
   if(rc != SUCCESS){
     if(rc == RC::RECORD_EOF){
@@ -1772,8 +1808,11 @@ RC BplusTreeScanner::close() {
   if (!opened_) {
     return RC::RECORD_SCANCLOSED;
   }
-  free((void *)value_);
-  value_ = nullptr;
+  for (size_t i = 0; i < value_length; i++) {
+    free((void*)value_[i]);
+    value_[i] = nullptr;
+  }
+  
   opened_ = false;
   return RC::SUCCESS;
 }
@@ -1884,7 +1923,8 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
   float f1=0,f2=0;
   const char *s1=nullptr,*s2=nullptr;
 
-  if(comp_op_ == NO_OP){
+  //if(comp_op_ == NO_OP){
+  if (value_length == 0) {
     return true;
   }
   int attr_len = 0;
@@ -1892,7 +1932,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
     // 先比较类型
     AttrType attr_type = index_handler_.file_header_.attr_types[i].attr_type;
     const char* temp_pkey_ = pkey + attr_len;
-    const char* temp_value_ = value_ + attr_len;
+    const char* temp_value_ = value_[i];
 
     switch(attr_type){
       case INTS:
@@ -1917,7 +1957,7 @@ bool BplusTreeScanner::satisfy_condition(const char *pkey) {
     int attr_length = index_handler_.file_header_.attr_types[i].attr_length;
     attr_len += attr_length;
 
-    switch(comp_op_){
+    switch(comp_op_[i]){
       case EQUAL_TO:
         switch(attr_type){
           case INTS:

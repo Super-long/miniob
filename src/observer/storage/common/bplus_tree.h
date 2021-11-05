@@ -117,7 +117,7 @@ protected:
   RC coalesce_node(PageNum leaf_page, PageNum right_page);
   RC redistribute_nodes(PageNum left_page, PageNum right_page);
 
-  RC find_first_index_satisfied(CompOp comp_op, const char *pkey, PageNum *page_num, int *rididx);
+  RC find_first_index_satisfied(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value, PageNum *page_num, int *rididx);
   RC get_first_leaf_page(PageNum *leaf_page);
 
 private:
@@ -142,7 +142,7 @@ public:
    * compOp和*value指定比较符和比较值，indexScan为初始化后的索引扫描结构指针
    * 没有带两个边界的范围扫描
    */
-  RC open(CompOp comp_op, const char *value);
+  RC open(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value);
 
   /**
    * 用于继续索引扫描，获得下一个满足条件的索引项，
@@ -169,8 +169,10 @@ private:
 private:
   BplusTreeHandler   & index_handler_;
   bool opened_ = false;
-  CompOp comp_op_ = NO_OP;                      // 用于比较的操作符
-  const char *value_ = nullptr;		              // 与属性行比较的值
+  CompOp comp_op_[MAX_NUM];                     // 用于比较的操作符
+  const char *value_[MAX_NUM];                  // 与属性行比较的值
+  int value_length;                             // 此次比较中需要比较几个值
+
   int num_fixed_pages_ = -1;                    // 固定在缓冲区中的页，与指定的页面固定策略有关
   int pinned_page_count_ = 0;                   // 实际固定在缓冲区的页面数
   BPPageHandle page_handles_[BP_BUFFER_SIZE];   // 固定在缓冲区页面所对应的页面操作列表

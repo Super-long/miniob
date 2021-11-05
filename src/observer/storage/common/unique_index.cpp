@@ -65,7 +65,7 @@ RC UniqueIndex::delete_entry(const char *record, const RID *rid) {
   return index_handler_.delete_entry(record + fields_meta_[0].offset(), rid);
 }
 
-IndexScanner *UniqueIndex::create_scanner(CompOp comp_op, const char *value) {
+IndexScanner *UniqueIndex::create_scanner(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) {
   LOG_DEBUG("Pay attention here！ERROR in UniqueIndex::create_scanner");
   return nullptr;
 }

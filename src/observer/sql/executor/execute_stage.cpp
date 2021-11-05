@@ -701,5 +701,6 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   schema.print(output); 
   LOG_DEBUG("tmp TupleSchema after filter : {%s}", output.str().c_str());
 
+  // 目前我们只支持一个多列索引，也就是每次都会使用所有的where条件组成一个compositeConditions判断是否匹配多列索引
   return select_node.init(trx, table, std::move(schema), std::move(condition_filters));
 }

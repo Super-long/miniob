@@ -98,7 +98,8 @@ RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
   return rc;
 }
 
-IndexScanner *BplusTreeIndex::create_scanner(CompOp comp_op, const char *value) {
+IndexScanner *BplusTreeIndex::create_scanner(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) {
+  LOG_DEBUG("use index name");
   BplusTreeScanner *bplus_tree_scanner = new BplusTreeScanner(index_handler_);
   RC rc = bplus_tree_scanner->open(comp_op, value);
   if (rc != RC::SUCCESS) {
