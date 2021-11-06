@@ -14,7 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "storage/common/field_meta.h"
 #include "common/log/log.h"
-
+#include "storage/default/disk_buffer_pool.h"
 #include "json/json.h"
 
 const static Json::StaticString FIELD_NAME("name");
@@ -96,7 +96,7 @@ bool FieldMeta::visible() const {
 void FieldMeta::desc(std::ostream &os) const {
   os << "field name=" << name_
      << ", type=" << attr_type_to_string(attr_type_)
-     << ", len=" << attr_len_
+     << ", len=" << (attr_type_== TEXTS ? BP_PAGE_SIZE: attr_len_)
      << ", visible=" << (visible_ ? "yes" : "no");
 }
 

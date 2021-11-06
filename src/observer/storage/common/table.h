@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_TABLE_H__
 
 #include "storage/common/table_meta.h"
+#include "storage/default/disk_buffer_pool.h"
 
 class DiskBufferPool;
 class RecordFileHandler;
@@ -27,7 +28,6 @@ class Index;
 class IndexScanner;
 class RecordDeleter;
 class Trx;
-
 class Table {
 public:
   Table();
@@ -70,6 +70,9 @@ public:
   RC commit_delete(Trx *trx, const RID &rid);
   RC rollback_insert(Trx *trx, const RID &rid);
   RC rollback_delete(Trx *trx, const RID &rid);
+
+public:
+  RC get_page_data(PageNum page_num, Page **page);
 
 private:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));

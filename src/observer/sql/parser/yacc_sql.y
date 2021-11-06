@@ -273,7 +273,7 @@ attr_def:
 		{
 			AttrInfo attribute;
 			attr_info_init(&attribute, CONTEXT->id, $2, 4);
-			if (attribute.type == TEXTS) attribute.length = 4096;
+			if (attribute.type == TEXTS) attribute.length = sizeof(int) * 2;
 			if (attribute.type == CHARS) attribute.length = 256;
 			if (attribute.type == DATES) attribute.length = 10;
 			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);

@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/table.h"
 #include "common/log/log.h"
 #include "common/time/datetime.h"
+#include "storage/default/disk_buffer_pool.h"
+#include "storage/default/default_handler.h"
 #include <assert.h>
 #include <sstream>
 #include <algorithm>
@@ -27,6 +29,15 @@ Tuple::Tuple(const Tuple &other) {
 
 Tuple::Tuple(Tuple &&other) noexcept : values_(std::move(other.values_)) {
 }
+
+void Tuple::debug() const {
+  if(size() > 1) {
+    std::stringstream ss1;
+    print(ss1);
+    LOG_DEBUG("result_tupleset:%s",ss1.str().c_str());
+  }
+}
+
 
 void Tuple::print(std::ostream &os) const {
     for (int i = 0 ; i < values_.size(); i++) {
@@ -68,6 +79,14 @@ void Tuple::add(const char *s, int len) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+RC TupleSchema::set_field(int index, const TupleField &field) {
+  if (index >= fields_.size()) {
+    return INVALID_ARGUMENT;
+  }
+  fields_[index] = field;
+  return SUCCESS;
+}
 
 std::string TupleField::to_string() const {
   return std::string(table_name_) + "." + field_name_ + std::to_string(type_);
@@ -248,6 +267,21 @@ const TupleSchema &TupleSet::get_schema() const {
   return schema_;
 }
 
+void TupleSet::debug() const {
+  if (size() > 0) {
+    std::stringstream ss1;
+
+    if(size() > 1) {
+      print(ss1, true);
+    } else {
+      // 当前只查询一张表，直接返回结果即可
+      print(ss1, false);
+    }
+    LOG_DEBUG("result_tupleset:%s",ss1.str().c_str());
+  }
+}
+
+
 bool TupleSet::is_empty() const {
   return tuples_.empty();
 }
@@ -416,6 +450,41 @@ void TupleSet::erase_projection() {
   LOG_DEBUG("schema display after : %s", ss.str().c_str());
 }
 
+void TupleSet::set_text(const char *db) {
+  for (int i = 0; i < schema_.size(); i++) {
+    const TupleField &field = schema_.fields()[i];
+    if (field.type() == TEXTS) {
+      for (int j = 0; j < tuples_.size(); j++) {
+        RC rc;
+        std::string text;
+        Page *page1, *page2;
+        const char *str = tuples_[j].get_pointer(i)->to_const_char();
+        PageNum pnum1 = *(PageNum*)(str);
+        PageNum pnum2 = *(PageNum*)(str + sizeof(PageNum));
+        Table * table = DefaultHandler::get_default().find_table(db, field.table_name());
+
+        text.reserve(BP_PAGE_DATA_SIZE * 2);
+        rc = table->get_page_data(pnum1, &page1);
+        if (rc != SUCCESS) {
+          LOG_PANIC("get page data failed");
+        }
+
+        rc = table->get_page_data(pnum2, &page2);
+        if (rc != SUCCESS) {
+          LOG_PANIC("get page data failed");
+        }
+
+        text.append(page1->data + sizeof(PageNum), 0, BP_PAGE_DATA_SIZE - sizeof(PageNum));
+        text.append(page2->data + sizeof(PageNum), 0 ,BP_PAGE_DATA_SIZE - sizeof(PageNum));
+
+        tuples_[j].set(i, new StringValue(text.c_str()));
+      }
+
+      TupleField field_tmp(CHARS, field.table_name(), field.field_name(), field.get_agg());
+      schema_.set_field(i, field_tmp);
+    }
+  }
+}
 
 /////////////////////////////////////////////////////////////////////////////
 TupleRecordConverter::TupleRecordConverter(Table *table, TupleSet &tuple_set) :
@@ -439,11 +508,16 @@ void TupleRecordConverter::add_record(const char *record) {
         float value = *(float *)(record + field_meta->offset());
         tuple.add(value);
       }
-        break;
+      break;
       case DATES:
       case CHARS: {
         const char *s = record + field_meta->offset();  // 现在当做Cstring来处理
         tuple.add(s, strlen(s));
+      }
+      break;
+      case TEXTS: {
+        /* 俩 pageNum */
+        tuple.add(record + field_meta->offset(),  sizeof(PageNum) * 2);
       }
       break;
       default: {
@@ -455,4 +529,13 @@ void TupleRecordConverter::add_record(const char *record) {
   tuple_set_.add(std::move(tuple));
 }
 
+RC Table::get_page_data(PageNum page_num, Page **page) {
+  BPPageHandle page_handle;
+  RC rc = data_buffer_pool_->get_this_page(file_id_, page_num, &page_handle);
+
+  if (rc != SUCCESS)
+    return rc;
+  *page = &page_handle.frame->page;
+  return SUCCESS;
+}
 

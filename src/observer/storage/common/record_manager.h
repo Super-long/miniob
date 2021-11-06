@@ -45,6 +45,11 @@ struct Record
   char *data; // record's data
 };
 
+enum PAGE_TYPE {
+  PAGE_RECORD,
+  PAGE_TEXT,
+};
+
 class RecordPageHandler {
 public:
   RecordPageHandler();

@@ -160,7 +160,7 @@ int run_test(int sockfd) {
   char recv_buf[MAX_MEM_BUFFER_SIZE];
   int len;
   std::string output;
-  int send_bytes;
+  ssize_t send_bytes;
 
   // Example
   t("select * from test1;",
@@ -373,7 +373,26 @@ int run_test(int sockfd) {
   return 0;
 }
 
+ssize_t write_n(int fd, const char *str, size_t len) {
+  size_t written = 0;
+  while (written < len) {
+    ssize_t r = write(fd, str + written, len - written);
+    if (r < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
+    } else if (r == 0) {
+      break;
+    }
+    written += r;
+  }
+  return written;
+}
+
 int main(int argc, char *argv[]) {
+  set_terminal_noncanonical();
   int ret = 0; // set_terminal_noncanonical();
   if (ret < 0) {
     printf("Warning: failed to set terminal non canonical. Long command may be "
@@ -424,7 +443,7 @@ int main(int argc, char *argv[]) {
   }
 
   char send_buf[MAX_MEM_BUFFER_SIZE];
-  int send_bytes;
+  ssize_t send_bytes;
   // char buf[MAXDATASIZE];
 
   fputs(prompt_str, stdout);
@@ -437,8 +456,9 @@ int main(int argc, char *argv[]) {
     if (is_exit_command(send_buf)) {
       break;
     }
+    ssize_t send_len = strlen(send_buf) + 1;
 
-    if ((send_bytes = write(sockfd, send_buf, strlen(send_buf) + 1)) == -1) {
+    if ((send_bytes = write_n(sockfd, send_buf, send_len)) != send_len) {
       fprintf(stderr, "send error: %d:%s \n", errno, strerror(errno));
       exit(1);
     }

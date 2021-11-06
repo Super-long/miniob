@@ -25,6 +25,7 @@ class Table;
 
 class Tuple {
 public:
+
   Tuple() = default;
 
   Tuple(const Tuple &other);
@@ -52,6 +53,10 @@ public:
     return *values_[index];
   }
 
+  void set(int index, TupleValue *value) {
+    values_[index] = std::shared_ptr<TupleValue>(value);
+  }
+
   void remove(int index) {
     values_.erase(values_.begin() + index);
   }
@@ -61,6 +66,7 @@ public:
   }
 
   void print(std::ostream &os) const;
+  void debug() const;
 
 private:
   std::vector<std::shared_ptr<TupleValue>>  values_;
@@ -97,7 +103,7 @@ private:
   bool is_agg;
 };
 
-class TupleSchema {
+class  TupleSchema {
 public:
   TupleSchema() = default;
   ~TupleSchema() = default;
@@ -114,9 +120,13 @@ public:
     return fields_;
   }
 
+  int size() const { return fields_.size(); }
+
   const TupleField &field(int index) const {
     return fields_[index];
   }
+
+  RC set_field(int index, const TupleField &field);
 
   int index_of_field(const char *table_name, const char *field_name) const;
   void clear() {
@@ -162,6 +172,9 @@ public:
 
   void orderBy(const OrderBy* orders, size_t order_num);
   void groupBy(const GroupBy* groups, size_t group_num ,std::vector<TupleSet>& result_tupleset);
+
+  void debug() const;
+  void set_text(const char *db);
 
 public:
   const TupleSchema &schema() const {

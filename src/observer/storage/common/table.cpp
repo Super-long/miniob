@@ -267,7 +267,9 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
     if (field->type() != value.type) {
-        if (!(value.type == CHARS && field->type() == DATES)) {
+        if (!(value.type == CHARS &&
+              (field->type() == DATES ||
+              field->type() == TEXTS))) {
             LOG_ERROR("Invalid value type. field name=%s, type=%d, but given=%d",
                       field->name(), field->type(), value.type);
             return RC::SCHEMA_FIELD_TYPE_MISMATCH;
@@ -282,7 +284,8 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
   for (int i = 0; i < value_num; i++) {
     const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
     const Value &value = values[i];
-    if (field->type() == DATES) {
+    switch (field->type()) {
+    case DATES: {
         char *data = static_cast<char *>(value.data);
         std::string new_value;
         char *token = strtok(data, "-");
@@ -346,8 +349,64 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
                 return INVALID_ARGUMENT;
         }
         memcpy(record + field->offset(), new_value.c_str(), field->len());
-    } else {
-        memcpy(record + field->offset(), value.data, field->len());
+        break;
+    }
+    case TEXTS: {
+      auto text_length = strlen((char *)value.data);
+      if (text_length > 4096) {
+        return INVALID_ARGUMENT;
+      }
+
+      BPPageHandle page_handle[2];
+      char *pdata[2];
+      PageNum pnum[2];
+      RC rc;
+      auto offset = 0;
+
+      /* 分配俩空页用来填充数据 */
+      for (int i = 0; i < 2; i++) {
+        if ((rc = data_buffer_pool_->allocate_page(file_id_, &page_handle[i])) != SUCCESS ||
+            (rc = data_buffer_pool_->get_data(&page_handle[i], &pdata[i])) != SUCCESS ||
+            (rc = data_buffer_pool_->get_page_num(&page_handle[i], &pnum[i])) != SUCCESS)
+          return rc;
+      }
+      // TextPage page;
+      // page.page_type = PAGE_TEXT;
+      // page.data = value.data;
+      int page_type = PAGE_TEXT;
+      /* 填充数据 */
+        memcpy(pdata[0], &page_type, sizeof(int));
+        memcpy(pdata[1], &page_type, sizeof(int));
+      if (text_length + sizeof(int) > BP_PAGE_DATA_SIZE) {
+        memcpy(pdata[0] + sizeof(int), value.data, BP_PAGE_DATA_SIZE - sizeof(int));
+        memcpy(pdata[1] + sizeof(int), value.data, text_length + sizeof(int) - BP_PAGE_DATA_SIZE);
+      } else {
+        memcpy(pdata[0] + sizeof(int), value.data, text_length);
+      }
+
+      /* 数据写回 */
+      for (int i = 0; i < 2; i++) {
+        if ((rc = data_buffer_pool_->mark_dirty(&page_handle[i])) != SUCCESS ||
+            (rc = data_buffer_pool_->unpin_page(&page_handle[i])) != SUCCESS ||
+            (rc = data_buffer_pool_->force_page(file_id_, pnum[i])) != SUCCESS)
+          return rc;
+      }
+
+      /* 记录页码 */
+      for (int i = 0; i < 2; i++) {
+        memcpy(record + field->offset() + offset, &pnum[i], sizeof(pnum[i]));
+        offset += sizeof(pnum[i]);
+      }
+      break;
+    }
+    case UNDEFINED: {
+      LOG_PANIC("Unspecified field %s", field->type());
+      break;
+    }
+    default: {
+      memcpy(record + field->offset(), value.data, field->len());
+      break;
+    }
     }
   }
 
@@ -446,7 +505,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
     }
   }
 
-  if (RC::RECORD_EOF == rc) {
+  if (RC::RECORD_EOF == rc || RC::PERM == rc) {
     rc = RC::SUCCESS;
   } else {
     LOG_ERROR("failed to scan record. file id=%d, rc=%d:%s", file_id_, rc, strrc(rc));

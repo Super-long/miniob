@@ -26,7 +26,7 @@ class TupleValue {
 public:
   TupleValue() = default;
   virtual ~TupleValue() = default;
-
+  virtual const char *to_const_char() const = 0;
   virtual void to_string(std::ostream &os) const = 0;
   virtual void to_string(std::string &s) const = 0;
   virtual std::string to_string() const = 0;
@@ -37,6 +37,11 @@ private:
 class IntValue : public TupleValue {
 public:
   explicit IntValue(int value) : value_(value) {
+  }
+
+  const char *to_const_char() const override {
+        /* Have not implement */
+        return nullptr;
   }
 
   void to_string(std::ostream &os) const override {
@@ -84,6 +89,11 @@ public:
           }
       }
       os << output.c_str();
+  }
+
+  const char *to_const_char() const override {
+        /* Have not implement */
+        return nullptr;
   }
 
   void to_string(std::string &s) const override{
@@ -144,6 +154,10 @@ public:
       std::ostringstream oss;
       to_string(oss);
       s = oss.str();
+  }
+
+  const char *to_const_char() const override {
+    return value_.c_str();
   }
 
   std::string to_string() const override {

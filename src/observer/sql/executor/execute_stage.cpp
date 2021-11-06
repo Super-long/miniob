@@ -439,6 +439,12 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   // step2:用上面生成的select_node拿到tuples
   rc = create_tuples(session, select_nodes, tuple_sets);
+
+  /* set text */
+  for (int i = 0; i < tuple_sets.size(); i++) {
+    tuple_sets[i].set_text(db);
+  }
+
   if (rc != RC::SUCCESS) {
     end_trx_if_need(session, trx, false);
     return rc;
