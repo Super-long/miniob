@@ -354,7 +354,7 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
     case TEXTS: {
       auto text_length = strlen((char *)value.data);
       if (text_length > 4096) {
-        return INVALID_ARGUMENT;
+        text_length = 4096;
       }
 
       BPPageHandle page_handle[2];
