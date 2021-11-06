@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_INDEX_META_H__
 
 #include <string>
+#include <vector>
 #include "rc.h"
 
 class TableMeta;
@@ -29,11 +30,11 @@ class IndexMeta {
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field);
+  RC init(const char *name, std::vector<FieldMeta> fields_array);
 
 public:
   const char *name() const;
-  const char *field() const;
+  const std::vector<std::string>& field() const;
 
   void desc(std::ostream &os) const;
 public:
@@ -42,6 +43,6 @@ public:
 
 private:
   std::string       name_;
-  std::string       field_;
+  std::vector<std::string> fields_;
 };
 #endif // __OBSERVER_STORAGE_COMMON_INDEX_META_H__

@@ -47,7 +47,7 @@ private:
   Trx *trx_ = nullptr;
   Table  * table_;
   TupleSchema  tuple_schema_;
-  std::vector<DefaultConditionFilter *> condition_filters_;
+  std::vector<DefaultConditionFilter *> condition_filters_; // 用于单个索引的匹配
 };
 
 class AggregationNode : public ExecutionNode {

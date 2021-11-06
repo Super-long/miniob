@@ -99,10 +99,10 @@ public:
    * ②逐个扫描被索引的记录，并向索引文件中插入索引项；③关闭索引
    * @param indexName
    * @param relName
-   * @param attrName
+   * @param attrName //属性列表
    * @return
    */
-  RC create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, const char *attribute_name, IndexType index_type);
+  RC create_index(Trx *trx, const char *dbname, const char *relation_name, const char *index_name, char *const attribute_name[MAX_NUM], size_t attribute_count, IndexType index_type);
 
   /**
    * 该函数用来删除名为indexName的索引。

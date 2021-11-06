@@ -21,6 +21,7 @@ class DiskBufferPool;
 class RecordFileHandler;
 class ConditionFilter;
 class DefaultConditionFilter;
+class CompositeConditionFilter;
 struct Record;
 struct RID;
 class Index;
@@ -56,7 +57,7 @@ public:
 
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, void (*record_reader)(const char *data, void *context));
 
-  RC create_index(Trx *trx, const char *index_name, const char *attribute_name, IndexType index_type);
+  RC create_index(Trx *trx, const char *index_name, char *const attribute_name[MAX_NUM], size_t attribute_count, IndexType index_type);
 
 public:
   const char *name() const;
@@ -75,7 +76,10 @@ private:
   RC scan_record(Trx *trx, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   RC scan_record_by_index(Trx *trx, IndexScanner *scanner, ConditionFilter *filter, int limit, void *context, RC (*record_reader)(Record *record, void *context));
   IndexScanner *find_index_for_scan(const ConditionFilter *filter);
+  // 用于匹配单个索引
   IndexScanner *find_index_for_scan(const DefaultConditionFilter &filter);
+  // 用于查找多列索引，优先查找多列索引
+  IndexScanner *find_index_for_scan(const CompositeConditionFilter &filter);
 
   RC insert_record(Trx *trx, Record *record);
   RC delete_record(Trx *trx, Record *record);

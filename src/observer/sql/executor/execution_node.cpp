@@ -32,7 +32,6 @@ SelectExeNode::init(Trx *trx, Table *table, TupleSchema &&tuple_schema, std::vec
   table_ = table;
   tuple_schema_ = tuple_schema;
   condition_filters_ = std::move(condition_filters);
-
   return RC::SUCCESS;
 }
 
@@ -41,6 +40,7 @@ void record_reader(const char *data, void *context) {
   converter->add_record(data);
 }
 RC SelectExeNode::execute(TupleSet &tuple_set) {
+  // 为了匹配多列索引，我们需要创建一个CompositeConditionFilter
   CompositeConditionFilter condition_filter;
   condition_filter.init((const ConditionFilter **)condition_filters_.data(), condition_filters_.size());
 
@@ -55,7 +55,7 @@ RC AggregationNode::add_field(AttrType type, const char *table_name, const char 
     // 目前我们不考虑可能重复的情况
     // 比如 select t1, avg(t2), t1 这种情况不会被筛选出来
     result_schema->add(type, table_name, field_name);
-    // // 其实就是插入一个临时的值，后面会进行替换的
+    // 其实就是插入一个临时的值，后面会进行替换的
     tuple.add(0);
     return RC::SUCCESS;
 }

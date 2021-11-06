@@ -45,16 +45,17 @@ public:
   virtual RC insert_entry(const char *record, const RID *rid) = 0;
   virtual RC delete_entry(const char *record, const RID *rid) = 0;
 
-  virtual IndexScanner *create_scanner(CompOp comp_op, const char *value) = 0;
+  virtual IndexScanner *create_scanner(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) = 0;
 
   virtual RC sync() = 0;
 
 protected:
-  RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
+  RC init(const IndexMeta &index_meta, std::vector<FieldMeta> fields_meta);
 
 protected:
   IndexMeta   index_meta_;
-  FieldMeta   field_meta_;    /// 当前实现仅考虑一个字段的索引
+  // 考虑多列索引
+  std::vector<FieldMeta> fields_meta_;
 };
 
 class IndexScanner {

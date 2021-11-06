@@ -27,6 +27,8 @@ int float_compare(float f1, float f2) {
 
 IndexNode * BplusTreeHandler::get_index_node(char *page_data) const {
   IndexNode *node = (IndexNode  *)(page_data + sizeof(IndexFileHeader));
+  // 这里注意key是先排列，然后是rid
+  // [key,key,key,key,RID,RID,RID]
   node->keys = (char *)node + sizeof(IndexNode);
   node->rids = (RID *)(node->keys + file_header_.order * file_header_.key_length);
   return node;
@@ -36,7 +38,7 @@ RC BplusTreeHandler::sync() {
   return disk_buffer_pool_->flush_all_pages(file_id_);
 }
 
-RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_length)
+RC BplusTreeHandler::create(const char *file_name, std::vector<FieldsAttr> attrs)
 {
   BPPageHandle page_handle;
   IndexNode *root;
@@ -72,13 +74,27 @@ RC BplusTreeHandler::create(const char *file_name, AttrType attr_type, int attr_
     return rc;
   }
   IndexFileHeader *file_header =(IndexFileHeader *)pdata;
+
+  size_t attr_length = 0;
+  // 我们相当于把多个字段的长度加起来作为比较的长度
+  for (auto& item : attrs) {
+    attr_length += item.attr_length;
+  }
+
   file_header->attr_length = attr_length;
   file_header->key_length = attr_length + sizeof(RID);
-  file_header->attr_type = attr_type;
+  file_header->attr_type_length = attrs.size();
+
+  // 目前类型的做法是比较挫的，后面可以优化成更省空间的做法
+  for (int i = 0; i < attrs.size(); ++i) {
+    file_header->attr_types[i] = attrs[i];
+  }
   file_header->node_num = 1;
+  // fileheader中能存几个key（attr+RID）
   file_header->order=((int)BP_PAGE_DATA_SIZE-sizeof(IndexFileHeader)-sizeof(IndexNode))/(attr_length+2*sizeof(RID));
   file_header->root_page = page_num;
 
+  // 第一页中数据排布是[IndexFileHeader,IndexNode,node->keys][看起来keys和RIDs是分开存储的]
   root = get_index_node(pdata);
   root->is_leaf = 1;
   root->key_num = 0;
@@ -193,15 +209,42 @@ int CompareKey(const char *pdata, const char *pkey,AttrType attr_type,int attr_l
   }
   return -2;//This means error happens
 }
-int CmpKey(AttrType attr_type, int attr_length, const char *pdata, const char *pkey)
-{
-  int result = CompareKey(pdata, pkey, attr_type, attr_length);
-  if (0 != result) {
-    return result;
+
+/*
+ * @pdata: insert或者get时的目标key
+ * @pkey: page里面的每一项数据
+ */
+int CmpKey(FieldsAttr* attrs_type, int attr_type_length, const char *pdata, const char *pkey)
+{ 
+  int attr_len = 0;
+  for (size_t i = 0; i < attr_type_length; i++) {
+    int result = CompareKey(pdata+attr_len, pkey+attr_len, attrs_type[i].attr_type, attrs_type[i].attr_length);
+    if (0 != result) {
+      return result;
+    }
+    attr_len += attrs_type[i].attr_length;
   }
-  RID *rid1 = (RID *) (pdata + attr_length);
-  RID *rid2 = (RID *) (pkey + attr_length);
+
+  RID *rid1 = (RID *) (pdata + attr_len);
+  RID *rid2 = (RID *) (pkey + attr_len);
   return CmpRid(rid1, rid2);
+}
+
+/*
+ * @pdata: insert或者get时的目标key
+ * @pkey: page里面的每一项数据
+ */
+int CmpKeyData(FieldsAttr* attrs_type, int attr_type_length, const char *pdata, const char *pkey) {
+  int attr_len = 0;
+  for (size_t i = 0; i < attr_type_length; i++) {
+    int result = CompareKey(pdata+attr_len, pkey+attr_len, attrs_type[i].attr_type, attrs_type[i].attr_length);
+    if (0 != result) {
+      return result;
+    }
+    attr_len += attrs_type[i].attr_length;
+  }
+  // 上面都相等都话我们返回0,不相等的话上面就会返回了
+  return 0;
 }
 
 RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
@@ -225,7 +268,7 @@ RC BplusTreeHandler::find_leaf(const char *pkey,PageNum *leaf_page) {
   node = get_index_node(pdata);
   while(0 == node->is_leaf){
     for(i = 0; i < node->key_num; i++){
-      tmp = CmpKey(file_header_.attr_type, file_header_.attr_length,pkey,node->keys + i * file_header_.key_length);
+      tmp = CmpKey(file_header_.attr_types, file_header_.attr_type_length, pkey, node->keys + i * file_header_.key_length);
       if(tmp < 0)
         break;
     }
@@ -274,7 +317,7 @@ RC BplusTreeHandler::insert_into_leaf(PageNum leaf_page, const char *pkey, const
   node = get_index_node(pdata);
 
   for(insert_pos = 0; insert_pos < node->key_num; insert_pos++){
-    tmp = CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys + insert_pos * file_header_.key_length);
+    tmp = CmpKey(file_header_.attr_types, file_header_.attr_type_length, pkey, node->keys + insert_pos * file_header_.key_length);
     if (tmp == 0) {
       return RC::RECORD_DUPLICATE_KEY;
     }
@@ -394,7 +437,7 @@ RC BplusTreeHandler::insert_into_leaf_after_split(PageNum leaf_page, const char 
   }
 
   for(insert_pos=0;insert_pos<leaf->key_num;insert_pos++){
-    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, leaf->keys+insert_pos*file_header_.key_length);
+    tmp=CmpKey(file_header_.attr_types, file_header_.attr_type_length, pkey, leaf->keys+insert_pos*file_header_.key_length);
     if(tmp<0)
       break;
   }
@@ -792,6 +835,8 @@ RC BplusTreeHandler::insert_into_new_root(PageNum left_page, const char *pkey, P
   return SUCCESS;
 }
 
+// 这里因为tuple是定长的，我们假设pkey是所有attr组合的数据
+// [int, date, char, float]事实上 rid代表这个record, pkey代表index包含列的数据
 RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
   RC rc;
   PageNum leaf_page;
@@ -806,8 +851,12 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
+  // 目前attr_length已经在创建索引时设置好了
   memcpy(key,pkey,file_header_.attr_length);
   memcpy(key + file_header_.attr_length, rid, sizeof(*rid));
+
+  LOG_DEBUG("key data %s", key);
+
   rc= find_leaf(key, &leaf_page);
   if(rc!=SUCCESS){
     free(key);
@@ -847,8 +896,6 @@ RC BplusTreeHandler::insert_entry(const char *pkey, const RID *rid) {
       free(key);
       return rc;
     }
-
-    // print();
 
     rc=insert_into_leaf_after_split(leaf_page,key,rid);
     free(key);
@@ -904,7 +951,8 @@ RC BplusTreeHandler::get_entry(const char *pkey, RID *rid) {
   // }
   for(i=0;i<leaf->key_num;i++){
     // 我们希望在比较的时候只看key,而不看RID相关
-    if(CompareKey(key, leaf->keys+(i*file_header_.key_length), file_header_.attr_type, file_header_.attr_length) == 0) {
+    //int CmpKeyData(FieldsAttr* attrs_type, int attr_type_length, const char *pdata, const char *pkey)
+    if(CmpKeyData(file_header_.attr_types, file_header_.attr_type_length, key, leaf->keys+(i*file_header_.key_length)) == 0) {
       LOG_DEBUG("leaf->data {%s}", leaf->keys+(i*file_header_.key_length));
       // 显然如果我们找到相同的key的话返回success
       memcpy(rid,leaf->rids+i,sizeof(RID));
@@ -937,7 +985,7 @@ RC BplusTreeHandler::delete_entry_from_node(PageNum node_page,const char *pkey) 
   node = get_index_node(pdata);
 
   for(delete_index=0;delete_index<node->key_num;delete_index++){
-    tmp=CmpKey(file_header_.attr_type, file_header_.attr_length, pkey, node->keys+delete_index*file_header_.key_length);
+    tmp=CmpKey(file_header_.attr_types, file_header_.attr_type_length, pkey, node->keys+delete_index*file_header_.key_length);
     if(tmp==0)
       break;
   }
@@ -1550,7 +1598,8 @@ RC BplusTreeHandler::print_tree() {
   return SUCCESS;
 }
 
-RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, PageNum *page_num, int *rididx) {
+// CompOp compop, const char *key
+RC BplusTreeHandler::find_first_index_satisfied(const std::vector<CompOp>& comp_ops, const std::vector<const char *>& value, PageNum *page_num, int *rididx) {
   BPPageHandle page_handle;
   IndexNode *node;
   PageNum leaf_page,next;
@@ -1558,6 +1607,18 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
   RC rc;
   int i,tmp;
   RID rid;
+
+  // 其实目前我们认为如果索引中有三列，where条件中至少前两个是等于号
+  // 根据最左匹配原则，我们得到第一个不是EQUAL的符号
+  CompOp compop = EQUAL_TO;
+  for (size_t i = 0; i < comp_ops.size(); i++) {
+    if (comp_ops[i] != EQUAL_TO) {
+      compop = comp_ops[i];
+      break;
+    }
+  }
+
+  // TODO：没有错，但是慢，后面再改
   if(compop == LESS_THAN || compop == LESS_EQUAL || compop == NOT_EQUAL){
     rc = get_first_leaf_page(page_num);
     if(rc != SUCCESS){
@@ -1573,7 +1634,18 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
     LOG_ERROR("Failed to alloc memory for key. size=%d", file_header_.key_length);
     return RC::NOMEM;
   }
-  memcpy(pkey, key, file_header_.attr_length);
+
+  int key_len = 0;
+  // 构建索引中的key
+  for (size_t i = 0; i < value.size(); i++) {
+    strncpy(pkey + key_len, value[i], file_header_.attr_types[i].attr_length);
+    key_len += file_header_.attr_types[i].attr_length;
+  }
+  assert(key_len == file_header_.attr_length);
+  // 临时方法
+  std::string key(pkey, key_len);
+
+  //memcpy(pkey, key, file_header_.attr_length);
   memcpy(pkey + file_header_.attr_length, &rid, sizeof(RID));
 
   rc = find_leaf(pkey, &leaf_page);
@@ -1597,7 +1669,9 @@ RC BplusTreeHandler::find_first_index_satisfied(CompOp compop, const char *key, 
 
     node = get_index_node(pdata);
     for(i = 0; i < node->key_num; i++){
-      tmp=CompareKey(node->keys+i*file_header_.key_length,key,file_header_.attr_type,file_header_.attr_length);
+      // 我们希望去比较数据，因为现在是多列，所以需要替换为CmpKeyData
+      tmp=CmpKeyData(file_header_.attr_types,file_header_.attr_type_length,node->keys+i*file_header_.key_length,key.c_str());
+      //tmp=CompareKey(node->keys+i*file_header_.key_length,key,file_header_.attr_type,file_header_.attr_length);
       if(compop == EQUAL_TO ||compop == GREAT_EQUAL){
         if(tmp>=0){
           rc = disk_buffer_pool_->get_page_num(&page_handle, page_num);
@@ -1687,21 +1761,33 @@ RC BplusTreeHandler::get_first_leaf_page(PageNum *leaf_page) {
 BplusTreeScanner::BplusTreeScanner(BplusTreeHandler &index_handler) : index_handler_(index_handler){
 }
 
-RC BplusTreeScanner::open(CompOp comp_op,const char *value) {
+// 因为现在是多列索引，这里传入的其实应该是多个操作和多个值，和现在的每一个value做比较
+//RC BplusTreeScanner::open(CompOp comp_op,const char *value) {
+RC BplusTreeScanner::open(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) {
   RC rc;
   if(opened_){
     return RC::RECORD_OPENNED;
   }
 
-  comp_op_ = comp_op;
+  assert(comp_op.size() == value.size());
+  assert(comp_op.size() <= MAX_NUM);
 
-  char *value_copy =(char *)malloc(index_handler_.file_header_.attr_length);
-  if(value_copy == nullptr){
-    LOG_ERROR("Failed to alloc memory for value. size=%d", index_handler_.file_header_.attr_length);
-    return RC::NOMEM;
+  value_length = comp_op.size();
+  for (int i = 0; i < comp_op.size(); ++i) {
+    comp_op_[i] = comp_op[i];
   }
-  memcpy(value_copy, value, index_handler_.file_header_.attr_length);
-  value_ = value_copy; // free value_
+
+  for (int i = 0; i < value.size(); ++i) {
+    // 显然我们知道这一项值的本身的长度
+    char *value_copy =(char *)malloc(index_handler_.file_header_.attr_types[i].attr_length);
+    if(value_copy == nullptr){
+      LOG_ERROR("Failed to alloc memory for value. size=%d", index_handler_.file_header_.attr_types[i].attr_length);
+      return RC::NOMEM;
+    }
+    memcpy(value_copy, value[i], index_handler_.file_header_.attr_types[i].attr_length);
+    value_[i] = value_copy; // free value_
+  }
+
   rc = index_handler_.find_first_index_satisfied(comp_op, value, &next_page_num_, &index_in_node_);
   if(rc != SUCCESS){
     if(rc == RC::RECORD_EOF){
@@ -1722,8 +1808,11 @@ RC BplusTreeScanner::close() {
   if (!opened_) {
     return RC::RECORD_SCANCLOSED;
   }
-  free((void *)value_);
-  value_ = nullptr;
+  for (size_t i = 0; i < value_length; i++) {
+    free((void*)value_[i]);
+    value_[i] = nullptr;
+  }
+  
   opened_ = false;
   return RC::SUCCESS;
 }
@@ -1819,136 +1908,159 @@ RC BplusTreeScanner::get_next_idx_in_memory(RID *rid) {
   }
   return RC::RECORD_NO_MORE_IDX_IN_MEM;
 }
+
+std::vector<FieldsAttr> FieldMeta2FieldsAttr(const std::vector<FieldMeta>& fields_meta) {
+  std::vector<FieldsAttr> fields_attr;
+  for (auto& item : fields_meta) {
+    fields_attr.push_back({item.type(), item.len()});
+  }
+  return fields_attr;
+}
+
+// 参数是一个索引中的key，这个key包含着多个attr，每个字段的长度我们在index_handler_.file_header_中存储过了
 bool BplusTreeScanner::satisfy_condition(const char *pkey) {
   int i1=0,i2=0;
   float f1=0,f2=0;
   const char *s1=nullptr,*s2=nullptr;
 
-  if(comp_op_ == NO_OP){
+  //if(comp_op_ == NO_OP){
+  if (value_length == 0) {
     return true;
   }
+  int attr_len = 0;
+  for (int i = 0; i < index_handler_.file_header_.attr_type_length; ++i) {
+    // 先比较类型
+    AttrType attr_type = index_handler_.file_header_.attr_types[i].attr_type;
+    const char* temp_pkey_ = pkey + attr_len;
+    const char* temp_value_ = value_[i];
 
-  AttrType  attr_type = index_handler_.file_header_.attr_type;
-  switch(attr_type){
-    case INTS:
-      i1=*(int *)pkey;
-      i2=*(int *)value_;
-      break;
-    case FLOATS:
-      f1=*(float *)pkey;
-      f2=*(float *)value_;
-      break;
-    case CHARS:
-    case DATES:
-      s1=pkey;
-      s2=value_;
-      break;
-    default:
-      LOG_PANIC("Unknown attr type: %d", attr_type);
+    switch(attr_type){
+      case INTS:
+        i1=*(int *)temp_pkey_;
+        i2=*(int *)temp_value_;
+        break;
+      case FLOATS:
+        f1=*(float *)temp_pkey_;
+        f2=*(float *)temp_value_;
+        break;
+      case CHARS:
+      case DATES:
+        s1=temp_pkey_;
+        s2=temp_value_;
+        break;
+      default:
+        LOG_PANIC("Unknown attr type: %d", attr_type);
+    }
+
+    bool flag=false;
+
+    int attr_length = index_handler_.file_header_.attr_types[i].attr_length;
+    attr_len += attr_length;
+
+    switch(comp_op_[i]){
+      case EQUAL_TO:
+        switch(attr_type){
+          case INTS:
+            flag=(i1==i2);
+            break;
+          case FLOATS:
+            flag= 0 == float_compare(f1, f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)==0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      case LESS_THAN:
+        switch(attr_type){
+          case INTS:
+            flag=(i1<i2);
+            break;
+          case FLOATS:
+            flag=(f1<f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)<0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      case GREAT_THAN:
+        switch(attr_type){
+          case INTS:
+            flag=(i1>i2);
+            break;
+          case FLOATS:
+            flag=(f1>f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)>0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      case LESS_EQUAL:
+        switch(attr_type){
+          case INTS:
+            flag=(i1<=i2);
+            break;
+          case FLOATS:
+            flag=(f1<=f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)<=0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      case GREAT_EQUAL:
+        switch(attr_type){
+          case INTS:
+            flag=(i1>=i2);
+            break;
+          case FLOATS:
+            flag=(f1>=f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)>=0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      case NOT_EQUAL:
+        switch(attr_type){
+          case INTS:
+            flag=(i1!=i2);
+            break;
+          case FLOATS:
+            flag= 0 != float_compare(f1, f2);
+            break;
+          case CHARS:
+          case DATES:
+            flag=(strncmp(s1,s2,attr_length)!=0);
+            break;
+          default:
+            LOG_PANIC("Unknown attr type: %d", attr_type);
+        }
+        break;
+      default:
+        LOG_PANIC("Unknown comp op: %d", comp_op_);
+    }
+    if (flag != 0) {
+      return flag;
+    }
   }
-
-  bool flag=false;
-
-  int attr_length = index_handler_.file_header_.attr_length;
-  switch(comp_op_){
-    case EQUAL_TO:
-      switch(attr_type){
-        case INTS:
-          flag=(i1==i2);
-          break;
-        case FLOATS:
-          flag= 0 == float_compare(f1, f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)==0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    case LESS_THAN:
-      switch(attr_type){
-        case INTS:
-          flag=(i1<i2);
-          break;
-        case FLOATS:
-          flag=(f1<f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)<0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    case GREAT_THAN:
-      switch(attr_type){
-        case INTS:
-          flag=(i1>i2);
-          break;
-        case FLOATS:
-          flag=(f1>f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)>0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    case LESS_EQUAL:
-      switch(attr_type){
-        case INTS:
-          flag=(i1<=i2);
-          break;
-        case FLOATS:
-          flag=(f1<=f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)<=0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    case GREAT_EQUAL:
-      switch(attr_type){
-        case INTS:
-          flag=(i1>=i2);
-          break;
-        case FLOATS:
-          flag=(f1>=f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)>=0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    case NOT_EQUAL:
-      switch(attr_type){
-        case INTS:
-          flag=(i1!=i2);
-          break;
-        case FLOATS:
-          flag= 0 != float_compare(f1, f2);
-          break;
-        case CHARS:
-        case DATES:
-          flag=(strncmp(s1,s2,attr_length)!=0);
-          break;
-        default:
-          LOG_PANIC("Unknown attr type: %d", attr_type);
-      }
-      break;
-    default:
-      LOG_PANIC("Unknown comp op: %d", comp_op_);
-  }
-  return flag;
+  // 上面全部不退出，这里当然就相等了
+  return 0;
 }

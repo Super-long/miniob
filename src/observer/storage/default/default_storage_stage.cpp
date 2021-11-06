@@ -212,7 +212,7 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
         LOG_DEBUG("this is bplusindex");
       }
       rc = handler_->create_index(current_trx, current_db, create_index.relation_name, 
-                                  create_index.index_name, create_index.attribute_name, type);
+                                  create_index.index_name, create_index.attribute_name, create_index.attribute_count, type);
       snprintf(response, sizeof(response), "%s\n", rc == RC::SUCCESS ? "SUCCESS" : "FAILURE");
     }
     break;

@@ -135,16 +135,22 @@ RC Table::open(const char *meta_file, const char *base_dir) {
   const int index_num = table_meta_.index_num();
   for (int i = 0; i < index_num; i++) {
     const IndexMeta *index_meta = table_meta_.index(i);
-    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
-    if (field_meta == nullptr) {
-      LOG_PANIC("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
-                name(), index_meta->name(), index_meta->field());
-      return RC::GENERIC_ERROR;
+    std::vector<FieldMeta> fields_meta;
+    auto fields_ = index_meta->field();
+    for (auto item : fields_) {
+      auto field_meta = table_meta_.field(item.c_str());
+      if (field_meta == nullptr) {
+        LOG_PANIC("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
+                  name(), index_meta->name(), item.c_str());
+        return RC::GENERIC_ERROR;
+      }
+      fields_meta.push_back(*field_meta);
     }
+    //const FieldMeta *field_meta = table_meta_.field(index_meta->field());
 
     BplusTreeIndex *index = new BplusTreeIndex();
     std::string index_file = index_data_file(base_dir, name(), index_meta->name());
-    rc = index->open(index_file.c_str(), *index_meta, *field_meta);
+    rc = index->open(index_file.c_str(), *index_meta, fields_meta);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to open index. table=%s, index=%s, file=%s, rc=%d:%s",
@@ -420,6 +426,7 @@ RC Table::scan_record(Trx *trx, ConditionFilter *filter, int limit, void *contex
     limit = INT_MAX;
   }
 
+  // 这里我们需要在多个条件的时候组合一个filter，也就是传入的那个CompositeConditionFilter
   IndexScanner *index_scanner = find_index_for_scan(filter);
   if (index_scanner != nullptr) {
     return scan_record_by_index(trx, index_scanner, filter, limit, context, record_reader);
@@ -510,23 +517,37 @@ static RC insert_index_record_reader_adapter(Record *record, void *context) {
   return inserter.insert_index(record);
 }
 
-RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_name, IndexType index_type) {
+// 目前我们需要支持多列索引，所以这里attribute是一个数组指针
+RC Table::create_index(Trx *trx, const char *index_name, char *const attribute_name[MAX_NUM], size_t attribute_count, IndexType index_type) {
   if (index_name == nullptr || common::is_blank(index_name) ||
-      attribute_name == nullptr || common::is_blank(attribute_name)) {
+      attribute_name == nullptr) {
     return RC::INVALID_ARGUMENT;
   }
-  if (table_meta_.index(index_name) != nullptr ||
-      table_meta_.find_index_by_field((attribute_name))) {
-    return RC::SCHEMA_INDEX_EXIST;
-  }
 
-  const FieldMeta *field_meta = table_meta_.field(attribute_name);
-  if (!field_meta) {
-    return RC::SCHEMA_FIELD_MISSING;
+  for (size_t i = 0; i < attribute_count; i++) {
+    if (common::is_blank(attribute_name[i])) {
+      return RC::INVALID_ARGUMENT;
+    }
   }
+  
+  if (table_meta_.index(index_name) != nullptr ||
+      table_meta_.find_index_by_field(attribute_name, attribute_count)) {
+    return RC::SCHEMA_INDEX_EXIST;
+  } 
+
+  std::vector<FieldMeta> fields_array;
+  fields_array.reserve(attribute_count);
+  for (size_t i = 0; i < attribute_count; i++) {
+    const FieldMeta *field_meta = table_meta_.field(attribute_name[i]);
+    if (!field_meta) {
+      return RC::SCHEMA_FIELD_MISSING;
+    }
+    fields_array.emplace_back(*field_meta);
+  }
+  
 
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init(index_name, fields_array);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -535,7 +556,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   if (index_type == IndexType::TypeBPlusTreeIndex) {
     BplusTreeIndex *BPlusTreeIndexInstance = new BplusTreeIndex();
     std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
-    rc = BPlusTreeIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    rc = BPlusTreeIndexInstance->create(index_file.c_str(), new_index_meta, fields_array);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -545,7 +566,7 @@ RC Table::create_index(Trx *trx, const char *index_name, const char *attribute_n
   } else {
     UniqueIndex *UniqueIndexInstance = new UniqueIndex();
     std::string index_file = index_data_file(base_dir_.c_str(), name(), index_name);
-    rc = UniqueIndexInstance->create(index_file.c_str(), new_index_meta, *field_meta);
+    rc = UniqueIndexInstance->create(index_file.c_str(), new_index_meta, fields_array);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to create unique index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));
@@ -804,7 +825,10 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     return nullptr;
   }
 
-  const IndexMeta *index_meta = table_meta_.find_index_by_field(field_meta->name());
+  // 这个垃圾代码恶心到我了，暂时这样写，写完了再说
+  char *temp_attribute_name[MAX_NUM];
+  temp_attribute_name[0] = const_cast<char*>(field_meta->name());
+  const IndexMeta *index_meta = table_meta_.find_index_by_field(temp_attribute_name, 1);
   if (nullptr == index_meta) {
     return nullptr;
   }
@@ -814,7 +838,61 @@ IndexScanner *Table::find_index_for_scan(const DefaultConditionFilter &filter) {
     return nullptr;
   }
 
-  return index->create_scanner(filter.comp_op(), (const char *)value_cond_desc->value);
+  // 为了适应接口，没办法
+  std::vector<CompOp> comp_array;
+  comp_array.push_back(filter.comp_op());
+  std::vector<const char*> values_array;
+  values_array.push_back((const char *)value_cond_desc->value);
+  return index->create_scanner(comp_array, values_array);
+}
+
+IndexScanner *Table::find_index_for_scan(const CompositeConditionFilter &filter) {
+  char *temp_attribute_name[MAX_NUM];
+  std::vector<CompOp> comp_array;
+  std::vector<const char*> values_array;
+
+  for (int i = 0; i < filter.filter_num(); ++i) {
+    const ConditionFilter* default_condition_filter = &filter.filter(i);
+    const DefaultConditionFilter *item_filter = dynamic_cast<const DefaultConditionFilter *>(default_condition_filter);
+    assert(item_filter != nullptr);
+
+    const ConDesc *field_cond_desc = nullptr;
+    const ConDesc *value_cond_desc = nullptr;
+    if (item_filter->left().is_attr && !item_filter->right().is_attr) {
+      field_cond_desc = &item_filter->left();
+      value_cond_desc = &item_filter->right();
+    } else if (item_filter->right().is_attr && !item_filter->left().is_attr) {
+      field_cond_desc = &item_filter->right();
+      value_cond_desc = &item_filter->left();
+    }
+    if (field_cond_desc == nullptr || value_cond_desc == nullptr) {
+      return nullptr;
+    }
+
+    const FieldMeta *field_meta = table_meta_.find_field_by_offset(field_cond_desc->attr_offset);
+    if (nullptr == field_meta) {
+      LOG_PANIC("Cannot find field by offset %d. table=%s",
+                field_cond_desc->attr_offset, name());
+      return nullptr;
+    }
+    
+    temp_attribute_name[i] = const_cast<char*>(field_meta->name());
+    comp_array.push_back(item_filter->comp_op());
+    values_array.push_back((const char *)value_cond_desc->value);
+  }
+  // 通过N项去找索引
+  const IndexMeta *index_meta = table_meta_.find_index_by_field(temp_attribute_name, filter.filter_num());
+  if (nullptr == index_meta) {
+    return nullptr;
+  }
+
+  Index *index = find_index(index_meta->name());
+  if (nullptr == index) {
+    return nullptr;
+  }
+
+
+  return index->create_scanner(comp_array, values_array);
 }
 
 IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
@@ -830,11 +908,17 @@ IndexScanner *Table::find_index_for_scan(const ConditionFilter *filter) {
 
   const CompositeConditionFilter *composite_condition_filter = dynamic_cast<const CompositeConditionFilter *>(filter);
   if (composite_condition_filter != nullptr) {
+    // 多列索引显然是最优的，如果找到直接退出就可以了
+    IndexScanner *scanner= find_index_for_scan(composite_condition_filter);
+    if (scanner != nullptr) {
+      return scanner;
+    }
+
     int filter_num = composite_condition_filter->filter_num();
     for (int i = 0; i < filter_num; i++) {
       IndexScanner *scanner= find_index_for_scan(&composite_condition_filter->filter(i));
       if (scanner != nullptr) {
-        return scanner; // 可以找到一个最优的，比如比较符号是=
+        return scanner;
       }
     }
   }

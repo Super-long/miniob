@@ -19,28 +19,28 @@ BplusTreeIndex::~BplusTreeIndex() noexcept {
   close();
 }
 
-RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) {
+RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, std::vector<FieldMeta> fields_meta) {
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
 
-  RC rc = Index::init(index_meta, field_meta);
+  RC rc = Index::init(index_meta, fields_meta);
   if (rc != RC::SUCCESS) {
     return rc;
   }
 
-  rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+  rc = index_handler_.create(file_name, FieldMeta2FieldsAttr(fields_meta));
   if (RC::SUCCESS == rc) {
     inited_ = true;
   }
   return rc;
 }
 
-RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta) {
+RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, std::vector<FieldMeta> fields_meta) {
   if (inited_) {
     return RC::RECORD_OPENNED;
   }
-  RC rc = Index::init(index_meta, field_meta);
+  RC rc = Index::init(index_meta, fields_meta);
   if (rc != RC::SUCCESS) {
     return rc;
   }
@@ -60,15 +60,46 @@ RC BplusTreeIndex::close() {
   return RC::SUCCESS;
 }
 
+void SpliceFields(char** key, const char *record, const std::vector<FieldMeta>& fields_meta_) {
+  // 通过已有的field中拼接数据，然后传入执行比较
+  int key_size = 0;
+  for (auto& item : fields_meta_) {
+    key_size += item.len();
+  }
+  key_size = 0;
+  char* pkey = new char[key_size];
+  // 把多个field拼接成一个数据块，索引本身
+  for (size_t i = 0; i < fields_meta_.size(); i++) {
+    memcpy(pkey + key_size, record + fields_meta_[i].offset(), fields_meta_[i].len());
+    key_size += fields_meta_[i].len();
+  }
+  *key = pkey;
+  return;
+}
+
 RC BplusTreeIndex::insert_entry(const char *record, const RID *rid) {
-  return index_handler_.insert_entry(record + field_meta_.offset(), rid);
+  // 后面做成智能指针
+  char* pkey = nullptr;
+  // 这里我们会给pkey分配一个指针
+  SpliceFields(&pkey, record, fields_meta_);
+  LOG_DEBUG("splice fields record data {%s}", pkey);
+
+  RC rc = index_handler_.insert_entry(pkey, rid);
+  delete[] pkey;
+  return rc;
 }
 
 RC BplusTreeIndex::delete_entry(const char *record, const RID *rid) {
-  return index_handler_.delete_entry(record + field_meta_.offset(), rid);
+  char* pkey = nullptr;
+  SpliceFields(&pkey, record, fields_meta_);
+
+  RC rc = index_handler_.delete_entry(pkey, rid);
+  delete[] pkey;
+  return rc;
 }
 
-IndexScanner *BplusTreeIndex::create_scanner(CompOp comp_op, const char *value) {
+IndexScanner *BplusTreeIndex::create_scanner(const std::vector<CompOp>& comp_op, const std::vector<const char *>& value) {
+  LOG_DEBUG("use index name");
   BplusTreeScanner *bplus_tree_scanner = new BplusTreeScanner(index_handler_);
   RC rc = bplus_tree_scanner->open(comp_op, value);
   if (rc != RC::SUCCESS) {

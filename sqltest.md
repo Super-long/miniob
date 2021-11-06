@@ -120,3 +120,10 @@
 3. insert into test1 values(1,"a",1.1, "2000-10-01");
 4. insert into test1 values(7,"a",1.1, "2000-10-01");
 5. create unique index index_in2 on test2(in2);
+
+### multi index
+1. indexmeta 的修改，以及序列化与反序列化
+2. BPlusTree 相关，如果我们把多个key看成一个key的话就可以只修改 insert_entry/delete_entry 了，改成多个attr拼在一起而不是单个attr，因为目前attr是定长的
+3. cmpkey是关键，我们在index node中的数据排列还是看作[key,key,key,key,RID,RID,RID,RID]，key->[data,RID],
+但其实key为多个attr，我们通过修改comkey参数来进行比较避免修改太多代码
+4. 目前page结构为[IndexFileHeader,IndexNode,[key,key,key,key,RID,RID,RID,RID]]，key->[data,RID], data->[attr,attr]
