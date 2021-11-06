@@ -376,7 +376,8 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
         memcpy(pdata[1], &page_type, sizeof(int));
       if (text_length + sizeof(int) > BP_PAGE_DATA_SIZE) {
         memcpy(pdata[0] + sizeof(int), value.data, BP_PAGE_DATA_SIZE - sizeof(int));
-        memcpy(pdata[1] + sizeof(int), value.data, text_length + sizeof(int) - BP_PAGE_DATA_SIZE);
+        memcpy(pdata[1] + sizeof(int), (char *)value.data + BP_PAGE_DATA_SIZE - sizeof(int),
+               text_length + sizeof(int) - BP_PAGE_DATA_SIZE);
       } else {
         memcpy(pdata[0] + sizeof(int), value.data, text_length);
       }
