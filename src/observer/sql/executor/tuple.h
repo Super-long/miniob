@@ -195,4 +195,7 @@ private:
   TupleSet &tuple_set_;
 };
 
+using PageNum = int;
+void parsing_text(const char *str, PageNum *pnum1, PageNum *pnum2);
+
 #endif //__OBSERVER_SQL_EXECUTOR_TUPLE_H_

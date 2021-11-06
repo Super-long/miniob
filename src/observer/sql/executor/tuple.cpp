@@ -450,6 +450,11 @@ void TupleSet::erase_projection() {
   LOG_DEBUG("schema display after : %s", ss.str().c_str());
 }
 
+void parsing_text(const char *str, PageNum *pnum1, PageNum *pnum2) {
+    *pnum1 = *(PageNum*)(str);
+    *pnum2 = *(PageNum*)(str + sizeof(PageNum));
+}
+
 void TupleSet::set_text(const char *db) {
   for (int i = 0; i < schema_.size(); i++) {
     const TupleField &field = schema_.fields()[i];
@@ -458,9 +463,9 @@ void TupleSet::set_text(const char *db) {
         RC rc;
         std::string text;
         Page *page1, *page2;
+        PageNum pnum1, pnum2;
         const char *str = tuples_[j].get_pointer(i)->to_const_char();
-        PageNum pnum1 = *(PageNum*)(str);
-        PageNum pnum2 = *(PageNum*)(str + sizeof(PageNum));
+        parsing_text(str, &pnum1, &pnum2);
         Table * table = DefaultHandler::get_default().find_table(db, field.table_name());
 
         text.reserve(BP_PAGE_DATA_SIZE * 2);

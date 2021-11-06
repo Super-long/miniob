@@ -370,9 +370,6 @@ RC Table::make_record(int value_num, const Value *values, char * &record_out) {
             (rc = data_buffer_pool_->get_page_num(&page_handle[i], &pnum[i])) != SUCCESS)
           return rc;
       }
-      // TextPage page;
-      // page.page_type = PAGE_TEXT;
-      // page.data = value.data;
       int page_type = PAGE_TEXT;
       /* 填充数据 */
         memcpy(pdata[0], &page_type, sizeof(int));
@@ -670,13 +667,46 @@ public:
 
     RC update_record(Record *record) {
         auto field = table_.table_meta_.field(attribute_name_);
-        memcpy(record->data + field->offset(), value_->data, field->len());
-        auto rc = table_.record_handler_->update_record(record);
-        if (rc != SUCCESS) {
-            LOG_ERROR("Failed to update record");
+        if (field->type() == TEXTS) {
+          BPPageHandle page_handle[2];
+          char *pdata[2];
+          PageNum pnum[2];
+          RC rc;
+          auto text_length = strlen((char *)value_->data);
+
+          parsing_text(record->data + field->offset(), &pnum[0], &pnum[1]);
+          /* 分配俩空页用来填充数据 */
+          for (int i = 0; i < 2; i++) {
+            if ((rc = table_.data_buffer_pool_->get_this_page(table_.file_id_, pnum[i], &page_handle[i])) != SUCCESS ||
+                (rc = table_.data_buffer_pool_->get_data(&page_handle[i], &pdata[i])) != SUCCESS)
+              return rc;
+            memset(pdata[i] + sizeof(int), 0, BP_PAGE_DATA_SIZE - sizeof(int));
+          }
+          /* 填充数据 */
+          if (text_length + sizeof(int) > BP_PAGE_DATA_SIZE) {
+            memcpy(pdata[0] + sizeof(int), value_->data, BP_PAGE_DATA_SIZE - sizeof(int));
+            memcpy(pdata[1] + sizeof(int), value_->data, text_length + sizeof(int) - BP_PAGE_DATA_SIZE);
+          } else {
+            memcpy(pdata[0] + sizeof(int), value_->data, text_length);
+
+          }
+          /* 数据写回 */
+          for (int i = 0; i < 2; i++) {
+            if ((rc = table_.data_buffer_pool_->mark_dirty(&page_handle[i])) != SUCCESS ||
+                (rc = table_.data_buffer_pool_->unpin_page(&page_handle[i])) != SUCCESS/*  ||
+                (rc = table_.data_buffer_pool_->force_page(table_.file_id_, pnum[i])) != SUCCESS */)
+              return rc;
+          }
+          return SUCCESS;
+        } else {
+          memcpy(record->data + field->offset(), value_->data, field->len());
+          auto rc = table_.record_handler_->update_record(record);
+          if (rc != SUCCESS) {
+              LOG_ERROR("Failed to update record");
+          }
+          updated_count_++;
+          return rc;
         }
-        updated_count_++;
-        return rc;
     }
 
     int updated_count() const {
@@ -703,7 +733,9 @@ RC Table::update_record(Trx *trx, const char *attribute_name, const Value *value
         return RC::INVALID_ARGUMENT;
     }
 
-    if (this->table_meta().field(attribute_name)->type() != value->type) {
+    auto field_type = this->table_meta().field(attribute_name)->type();
+
+    if (field_type != value->type && !(field_type == TEXTS && value->type == CHARS)) {
         return RC::INVALID_ARGUMENT;
     }
 
