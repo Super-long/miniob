@@ -125,10 +125,11 @@ StageEvent *ParseStage::handle_request(StageEvent *event) {
     //const char *error = result->sstr.errors != nullptr ? result->sstr.errors : "Unknown error";
     //char response[256];
     //snprintf(response, sizeof(response), "Failed to parse sql: %s, error msg: %s\n", sql.c_str(), error);
+    LOG_ERROR("Failed to parse sql!");
     sql_event->session_event()->set_response("FAILURE\n");
     query_destroy(result);
     return nullptr;
   }
-
+  LOG_INFO("Parse sql: %s successfully\n", sql.c_str());
   return new ExecutionPlanEvent(sql_event, result);
 }

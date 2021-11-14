@@ -115,6 +115,8 @@ ParserContext *get_context(yyscan_t scanner)
         BY
         UNIQUE
         ASC
+        null
+        NULLABLE
 
 %union {
   struct _Attr *attr;
@@ -136,6 +138,7 @@ ParserContext *get_context(yyscan_t scanner)
 //非终结符
 
 %type <number> type;
+%type <number> nullable_;
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
@@ -258,31 +261,35 @@ attr_def_list:
     ;
     
 attr_def:
-    ID_get type LBRACE number RBRACE 
+    ID_get type LBRACE number RBRACE nullable_
 		{
 			AttrInfo attribute;
 			attr_info_init(&attribute, CONTEXT->id, $2, $4);
-			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
+			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute, $6);
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name =(char*)malloc(sizeof(char));
 			// strcpy(CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name, CONTEXT->id); 
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].type = $2;  
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].length = $4;
 			CONTEXT->value_length++;
 		}
-    |ID_get type
+    |ID_get type nullable_
 		{
 			AttrInfo attribute;
 			attr_info_init(&attribute, CONTEXT->id, $2, 4);
 			if (attribute.type == TEXTS) attribute.length = sizeof(int) * 2;
 			if (attribute.type == CHARS) attribute.length = 256;
 			if (attribute.type == DATES) attribute.length = 10;
-			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute);
+			create_table_append_attribute(&CONTEXT->ssql->sstr.create_table, &attribute, $3);
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name=(char*)malloc(sizeof(char));
 			// strcpy(CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].name, CONTEXT->id); 
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].type=$2;  
 			// CONTEXT->ssql->sstr.create_table.attributes[CONTEXT->value_length].length=4; // default attribute length
 			CONTEXT->value_length++;
 		}
+    ;
+nullable_:
+    { $$ = 0;}
+    | NULLABLE { $$ = 1;}
     ;
 number:
 		NUMBER {$$ = $1;}

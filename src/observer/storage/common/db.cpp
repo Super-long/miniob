@@ -51,7 +51,7 @@ RC Db::init(const char *name, const char *dbpath) {
   return open_all_tables();
 }
 
-RC Db::create_table(const char *table_name, int attribute_count, const AttrInfo *attributes) {
+RC Db::create_table(const char *table_name, int attribute_count, const CreateTableAttr *attributes) {
   RC rc = RC::SUCCESS;
   // check table_name
   if (opened_tables_.count(table_name) != 0) {

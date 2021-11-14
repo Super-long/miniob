@@ -160,11 +160,16 @@ typedef struct {
   size_t length;  // Length of attribute
 } AttrInfo;
 
+typedef struct {
+  AttrInfo attr;
+  int null_able;
+} CreateTableAttr;
+
 // struct of craete_table
 typedef struct {
   char *relation_name;           // Relation name
   size_t attribute_count;        // Length of attribute
-  AttrInfo attributes[MAX_NUM];  // attributes
+  CreateTableAttr attributes[MAX_NUM];  // attributes
 } CreateTable;
 
 // struct of drop_table
@@ -275,7 +280,7 @@ void updates_init(Updates *updates, const char *relation_name, const char *attri
     Condition conditions[], size_t condition_num);
 void updates_destroy(Updates *updates);
 
-void create_table_append_attribute(CreateTable *create_table, AttrInfo *attr_info);
+void create_table_append_attribute(CreateTable *create_table, AttrInfo *attr_info, int null_able);
 void create_table_init_name(CreateTable *create_table, const char *relation_name);
 void create_table_destroy(CreateTable *create_table);
 

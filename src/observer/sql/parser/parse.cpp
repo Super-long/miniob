@@ -248,15 +248,18 @@ void updates_destroy(Updates *updates) {
   updates->condition_num = 0;
 }
 
-void create_table_append_attribute(CreateTable *create_table, AttrInfo *attr_info) {
-  create_table->attributes[create_table->attribute_count++] = *attr_info;
+void create_table_append_attribute(CreateTable *create_table, AttrInfo *attr_info, int null_able) {
+  CreateTableAttr *create_table_attr = &create_table->attributes[create_table->attribute_count];
+  create_table_attr->attr = *attr_info;
+  create_table_attr->null_able = null_able;
+  create_table->attribute_count++;
 }
 void create_table_init_name(CreateTable *create_table, const char *relation_name) {
   create_table->relation_name = strdup(relation_name);
 }
 void create_table_destroy(CreateTable *create_table) {
   for (size_t i = 0; i < create_table->attribute_count; i++) {
-    attr_info_destroy(&create_table->attributes[i]);
+    attr_info_destroy(&create_table->attributes[i].attr);
   }
   create_table->attribute_count = 0;
   free(create_table->relation_name);

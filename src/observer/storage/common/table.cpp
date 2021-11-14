@@ -47,7 +47,7 @@ Table::~Table() {
   LOG_INFO("Table has been closed: %s", name());
 }
 
-RC Table::create(const char *path, const char *name, const char *base_dir, int attribute_count, const AttrInfo attributes[]) {
+RC Table::create(const char *path, const char *name, const char *base_dir, int attribute_count, const CreateTableAttr attributes[]) {
 
   if (nullptr == name || common::is_blank(name)) {
     LOG_WARN("Name cannot be empty");

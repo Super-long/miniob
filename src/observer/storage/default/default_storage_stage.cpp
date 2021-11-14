@@ -158,7 +158,7 @@ void DefaultStorageStage::handle_event(StageEvent *event) {
 
   RC rc = RC::SUCCESS;
 
-  char response[256];
+  char response[512];
   switch (sql->flag)
   {
   case SCF_INSERT: { // insert into
