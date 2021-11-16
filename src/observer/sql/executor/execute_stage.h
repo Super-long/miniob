@@ -51,6 +51,8 @@ private:
   RC create_tuples(Session *session, std::vector<SelectExeNode *> select_nodes, std::vector<TupleSet>& result_tupleset);
   RC cross_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset);
   RC execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, const char *db, bool is_multi);
+  RC join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset);
+  RC inner_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset);
 
 private:
   Stage *default_storage_stage_ = nullptr;

@@ -115,6 +115,8 @@ ParserContext *get_context(yyscan_t scanner)
         BY
         UNIQUE
         ASC
+        INNER
+        JOIN
 
 %union {
   struct _Attr *attr;
@@ -356,10 +358,9 @@ update:			/*  update 语句的语法解析树*/
 		}
     ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr_list FROM ID rel_list where group_by order_by SEMICOLON
+    SELECT select_attr_list FROM FromCluse where group_by order_by SEMICOLON
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
-			selects_append_relation(&CONTEXT->ssql->sstr.selection, $4);
 
 			selects_append_conditions(&CONTEXT->ssql->sstr.selection, CONTEXT->conditions, CONTEXT->condition_length);
 
@@ -373,6 +374,31 @@ select:				/*  select 语句的语法解析树*/
 			CONTEXT->value_length = 0;
 	}
 	;
+FromCluse:
+  TableRefs {}
+  | ID JoinTables {
+    selects_append_relation(&CONTEXT->ssql->sstr.selection, $1);
+  }
+
+TableRefs:
+  TableRefs COMMA TableRef	{}
+  | TableRef {}
+  ;
+TableRef:
+	ID {
+    selects_append_relation(&CONTEXT->ssql->sstr.selection, $1);
+  }
+  ;
+
+JoinTables:
+  JoinTables JoinTable {
+  } | JoinTable {}
+  ;
+JoinTable:
+  INNER JOIN ID ON condition {
+    selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
+  }
+
 order_by:
   /*empty*/
   | ORDER BY order_attr_list {
@@ -551,12 +577,6 @@ agg_value:
   		value_init_float(&ainfo.value, $1);
       selects_set_aggregation(selection, &ainfo);
 		}
-    ;
-rel_list:
-    /* empty */
-    | COMMA ID rel_list {	
-				selects_append_relation(&CONTEXT->ssql->sstr.selection, $2);
-		  }
     ;
 where:
     /* empty */ 

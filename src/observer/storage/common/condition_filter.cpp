@@ -290,6 +290,31 @@ bool DefaultConditionFilter::filter_tuple(const Tuple & tuple) const {
     return false;
 }
 
+bool DefaultConditionFilter::filter_two_tuple(const Tuple & tuple1,const Tuple & tuple2) const {
+
+    auto cmp_result = tuple1.get(left_.attr_offset).compare(tuple2.get(right_.attr_offset));
+
+    switch (comp_op_) {
+        case EQUAL_TO:
+            return 0 == cmp_result;
+        case LESS_EQUAL:
+            return cmp_result <= 0;
+        case NOT_EQUAL:
+            return cmp_result != 0;
+        case LESS_THAN:
+            return cmp_result < 0;
+        case GREAT_EQUAL:
+            return cmp_result >= 0;
+        case GREAT_THAN:
+            return cmp_result > 0;
+
+        default:
+            break;
+    }
+    return false;
+}
+
+
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
   char *left_value = nullptr;

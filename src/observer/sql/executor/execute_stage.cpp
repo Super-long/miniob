@@ -271,6 +271,91 @@ RC ExecuteStage::create_tuples(Session *session, std::vector<SelectExeNode *> se
   return rc;
 }
 
+
+RC ExecuteStage::join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset) {
+  // if (join_type == cross_join) {
+  //   return cross_join(tuple_sets, selects, result_tupleset);
+  // }else {
+    return inner_join(tuple_sets, selects, result_tupleset);
+  // }
+}
+
+
+
+RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset) {
+  // 搞成vector是为了好改group by
+  std::stringstream ss;
+  RC rc = RC::SUCCESS;
+  TupleSet real_tupleset;
+
+  // step1.我们这里对把聚合后的结果（无论单表还是多表）扔在 real_tupleset 中
+  if (tuple_sets.size() > 1) {
+    // 本次查询了多张表，需要做join操作
+    auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
+    TupleSet result_set;
+
+    for (int i = tuple_sets.size()-2; i >=0; i--) {
+        auto right_set = std::move(tuple_sets.at(i));
+        /* table1.id1 = table2.id2 */
+        std::vector<DefaultConditionFilter *> condition_filters;
+        for (size_t j = 0; j < selects.condition_num; j++) {
+            auto condition = selects.conditions[j];
+            if (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
+                strcmp(condition.left_attr.relation_name,
+                      condition.right_attr.relation_name) != 0) {
+
+                auto *filter = new DefaultConditionFilter();
+                auto leftCon = ConDesc();
+                auto rightCon = ConDesc();
+                auto left_attr = &condition.left_attr;
+                auto right_attr = &condition.left_attr;
+                AttrType t1, t2;
+                int index = -1;
+                for (size_t k = 0; k < 2 && index ; k++, std::swap(left_attr,right_attr)) {
+                  int index = left_set.schema().index_of_field(left_attr->relation_name, left_attr->attribute_name);
+                  if (index < 0) {
+                    continue;
+                  }
+
+                  leftCon.is_attr = true;
+                  leftCon.attr_offset = index;
+                  t1 = left_set.schema().field(index).type();
+
+                  index = right_set.schema().index_of_field(right_attr->relation_name, right_attr->attribute_name);
+                  if (index < 0) {
+                    continue;
+                  }
+                  rightCon.is_attr = true;
+                  rightCon.attr_offset = index;
+                  t2 = right_set.schema().field(index).type();
+
+                  if (t1 != t2) {
+                      return RC::INVALID_ARGUMENT;
+                  }
+                }
+
+                filter->init(leftCon, rightCon, t1, condition.comp);
+                condition_filters.emplace_back(filter);
+            }
+        }
+
+        /* 设置过滤条件 */
+        auto inner_join_node = std::make_shared<InnerJoinNode>();
+        inner_join_node->init(&left_set, &right_set, std::move(condition_filters));
+        inner_join_node->execute(result_set);
+        left_set = std::move(result_set);
+    }
+    real_tupleset = std::move(left_set);
+  } else {
+    // 当前只查询一张表，直接返回结果即可
+    real_tupleset = std::move(tuple_sets.front());
+  }
+
+  // step2.最终我们需要把答案放在result_tupleset中
+  real_tupleset.groupBy(selects.groups, selects.group_num, result_tupleset);
+  return rc;
+}
+
 RC ExecuteStage::cross_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset) {
   // 搞成vector是为了好改group by
   std::stringstream ss;
@@ -452,7 +537,7 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
 
   // step3:多表的情况下进行join操作，生成一份新的tuples，把结果集放到result_tupleset中
   // 如果出现group_by的话我们需要去把结果做成多份放到result_tupleset中
-  rc = cross_join(tuple_sets, selects, result_tupleset);
+  rc = join(tuple_sets, selects, result_tupleset);
   if (rc != RC::SUCCESS) {
     end_trx_if_need(session, trx, false);
     return rc;

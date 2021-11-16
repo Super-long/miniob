@@ -101,4 +101,19 @@ private:
     TupleSet *right_child_;
 };
 
+class InnerJoinNode : public ExecutionNode {
+public:
+    InnerJoinNode() : left_child_(nullptr), right_child_(nullptr) {}
+    ~InnerJoinNode() override = default;
+
+    RC init(TupleSet *left_child, TupleSet *right_child,
+           std::vector<DefaultConditionFilter *> &&condition_filters);
+
+    RC execute(TupleSet &tuple_set) override;
+private:
+    TupleSet *left_child_;
+    TupleSet *right_child_;
+    std::vector<DefaultConditionFilter *> condition_filters_;
+};
+
 #endif //__OBSERVER_SQL_EXECUTOR_EXECUTION_NODE_H_

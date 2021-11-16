@@ -51,6 +51,7 @@ public:
 
   virtual bool filter(const Record &rec) const;
   virtual bool filter_tuple(const Tuple & tuple) const;
+  virtual bool filter_two_tuple(const Tuple & tuple1,const Tuple & tuple2) const;
 
 public:
   const ConDesc &left() const {
