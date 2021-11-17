@@ -2,12 +2,16 @@
 1. create table test1(in1 int, ch1 char, fl1 float, da1 date); 
 2. create table test2(in2 int, ch2 char, fl2 float, da2 date); 
 3. create table test3(in3 int, ch3 char, fl3 float, da3 date); 
+3. create table test4(in4 int, ch4 char, fl4 float, da4 date); 
+5. create table test5(in5 int, ch5 char, fl5 float, da5 date); 
 
 ## Insert Multi Values
 1. insert into test1 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 2. insert into test2 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 3. insert into test3 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
-4. insert into test1 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c","2000-10-03", 1),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
+4. insert into test4 values(5,"e",1.1, "2000-10-01"),(4,"d",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(2,"b",4.4, "2000-10-04"),(1,"a",5.5, "2000-10-05");
+5. insert into test5 values(5,"e",1.1, "2000-10-01"),(4,"d",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(2,"b",4.4, "2000-10-04"),(1,"a",5.5, "2000-10-05");
+6. insert into test5 values(5,"e",1.1, "2000-10-01"),(4,"d",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(2,"b",4.4, "2000-10-04"),(1,"a",5.5, "2000-10-05");
 
 ## Multi-Tables Query
 1. select * from test1, test2, test3;                                                       // y
@@ -143,4 +147,7 @@ select * from tt_13;
 select * from test1,test2;
 
 select * from test1 INNER JOIN test2 ON test1.in1 = test2.in2;
-select * from test1 INNER JOIN test2 ON test1.in1 = test2.in2 INNER JOIN test3 ON test1.in1 = test3.in3;
+select * from test1 INNER JOIN test2 ON test1.in1 = test2.in2 INNER JOIN test3 ON test1.ch1 = test3.ch3;
+
+select * from test1 INNER JOIN test2 ON test1.in1 = test2.in2 INNER JOIN test3 ON test1.ch1 = test3.ch3 INNER JOIN test4 ON test1.ch1 = test4.ch4;
+

@@ -320,8 +320,11 @@ RC InnerJoinNode::execute(TupleSet &tuple_set) {
         for (auto & right_tuple : right_child_->tuples()) {
             int cmp;
             for (auto *f : condition_filters_) {
+              left_tuple.debug();
+              right_tuple.debug();
               cmp = f->filter_two_tuple(left_tuple, right_tuple);
-              if (!cmp) break;
+
+              if (!cmp) break; /* !cmp 代表有问题 */
             }
             if (!cmp) continue;
 

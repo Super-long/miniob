@@ -280,6 +280,27 @@ RC ExecuteStage::join(std::vector<TupleSet>& tuple_sets, const Selects &selects,
   // }
 }
 
+CompOp ReverseCmpOp(CompOp op) {
+  switch (op) {
+    case CompOp::EQUAL_TO:
+      return CompOp::EQUAL_TO;
+    case CompOp::NOT_EQUAL:
+      return CompOp::NOT_EQUAL;
+
+    case CompOp::GREAT_EQUAL:
+      return CompOp::LESS_EQUAL;
+    case CompOp::LESS_EQUAL:
+      return CompOp::GREAT_EQUAL;
+
+    case CompOp::GREAT_THAN:
+      return CompOp::LESS_THAN;
+    case CompOp::LESS_THAN:
+      return CompOp::GREAT_THAN;
+
+    default:
+      return CompOp::NO_OP;
+  }
+}
 
 
 RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset) {
@@ -308,12 +329,17 @@ RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &se
                 auto leftCon = ConDesc();
                 auto rightCon = ConDesc();
                 auto left_attr = &condition.left_attr;
-                auto right_attr = &condition.left_attr;
+                auto right_attr = &condition.right_attr;
+                auto comp = condition.comp;
                 AttrType t1, t2;
                 int index = -1;
-                for (size_t k = 0; k < 2 && index ; k++, std::swap(left_attr,right_attr)) {
-                  int index = left_set.schema().index_of_field(left_attr->relation_name, left_attr->attribute_name);
+                for (size_t k = 0; k < 2 && index == -1; k++) {
+                  index = left_set.schema().index_of_field(left_attr->relation_name, left_attr->attribute_name);
                   if (index < 0) {
+                    if (k == 0) {
+                      std::swap(left_attr,right_attr);
+                      comp = ReverseCmpOp(comp);
+                    }
                     continue;
                   }
 
@@ -323,6 +349,10 @@ RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &se
 
                   index = right_set.schema().index_of_field(right_attr->relation_name, right_attr->attribute_name);
                   if (index < 0) {
+                    if (k == 0) {
+                      std::swap(left_attr,right_attr);
+                      comp = ReverseCmpOp(comp);
+                    }
                     continue;
                   }
                   rightCon.is_attr = true;
@@ -333,8 +363,9 @@ RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &se
                       return RC::INVALID_ARGUMENT;
                   }
                 }
-
-                filter->init(leftCon, rightCon, t1, condition.comp);
+                if (index == -1)
+                  continue;
+                filter->init(leftCon, rightCon, t1, comp);
                 condition_filters.emplace_back(filter);
             }
         }
