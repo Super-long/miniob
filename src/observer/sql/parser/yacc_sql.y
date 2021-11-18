@@ -377,7 +377,7 @@ select:				/*  select 语句的语法解析树*/
 FromCluse:
   TableRefs {}
   | ID JoinTables {
-    selects_append_relation(&CONTEXT->ssql->sstr.selection, $1);
+    selects_insert_relation(&CONTEXT->ssql->sstr.selection, $1);
   }
 
 TableRefs:
@@ -395,7 +395,7 @@ JoinTables:
   } | JoinTable {}
   ;
 JoinTable:
-  INNER JOIN ID ON condition {
+  INNER JOIN ID ON condition condition_list {
     selects_append_relation(&CONTEXT->ssql->sstr.selection, $3);
   }
 
