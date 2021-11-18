@@ -120,6 +120,15 @@ void selects_append_relation(Selects *selects, const char *relation_name) {
   selects->relations[selects->relation_num++] = strdup(relation_name);
 }
 
+void selects_insert_relation(Selects *selects, const char *relation_name) {
+      for (int i = selects->relation_num; i > 0 ; i--) {
+        if (i == 20) return;
+        selects->relations[i] = selects->relations[i-1];
+      }
+      selects->relations[0] = strdup(relation_name);
+      selects->relation_num++;
+}
+
 void selects_append_orderby(Selects *selects, RelAttr *orderby, int reverse) {
   OrderBy *order = &selects->orders[selects->order_num];
   order->reverse = reverse;

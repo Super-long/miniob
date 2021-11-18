@@ -312,10 +312,10 @@ RC ExecuteStage::inner_join(std::vector<TupleSet>& tuple_sets, const Selects &se
   // step1.我们这里对把聚合后的结果（无论单表还是多表）扔在 real_tupleset 中
   if (tuple_sets.size() > 1) {
     // 本次查询了多张表，需要做join操作
-    auto left_set = std::move(tuple_sets.at(tuple_sets.size()-1));
+    auto left_set = std::move(tuple_sets.at(0));
     TupleSet result_set;
 
-    for (int i = tuple_sets.size()-2; i >=0; i--) {
+    for (int i = 1; i <= tuple_sets.size()-1; i++) {
         auto right_set = std::move(tuple_sets.at(i));
         /* table1.id1 = table2.id2 */
         std::vector<DefaultConditionFilter *> condition_filters;
