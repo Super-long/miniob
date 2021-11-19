@@ -246,3 +246,7 @@ insert into test1 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"
 insert into test2 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 insert into test3 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 select * from test1 where in1 in (select in2 from test2 where test2.in2 in (select in3 from test3));
+
+select * from test1 where (select avg(test2.in2) from test2) <> (select avg(test3.in3) from test3);
+
+select * from test1 where (select avg(test2.in2) from test2) = (select avg(test3.in3) from test3);

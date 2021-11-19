@@ -801,7 +801,7 @@ RC create_selection_executor(ExecuteStage* stage, Trx *trx, const Selects &selec
         (condition.left_is_attr == 0 && condition.right_is_attr == 1 && match_table(selects, condition.right_attr.relation_name, table_name)) ||  // 左边是值，右边是属性名
         (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
             match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
-        )) || (condition.right_is_subselect && condition.left_is_attr == 1)) {
+        )) || (condition.right_is_subselect) || (condition.left_is_subselect)) {
       DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
       RC rc = condition_filter->init(db, stage, *table, condition, session_event);
       if (rc != RC::SUCCESS) {
