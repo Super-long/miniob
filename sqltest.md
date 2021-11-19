@@ -226,4 +226,17 @@ select * from test1 where in1 = (SELECT avg(test2.in2) from test2);
 
 insert into test1 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
 insert into test2 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
+SELECT * FROM test1 WHERE fl1 <= (SELECT MAX(test2.fl2) FROM test2);
+
 select * from test1 where (SELECT avg(test2.in2) from test2) = in1;
+
+
+create table SSQ_1(ID int, COL1 int, FEAT1 float);
+create table SSQ_2(ID int, COL2 int, FEAT2 float);
+insert into SSQ_1 values(1, 4, 11.2);
+insert into SSQ_1 values(2, 2, 12.0);
+insert into SSQ_1 values(3, 3, 13.5);
+insert into SSQ_2 values(1, 4, 11.2);
+insert into SSQ_2 values(2, 2, 12.0);
+insert into SSQ_2 values(3, 3, 13.0);
+SELECT * FROM SSQ_1 WHERE FEAT1 <= (SELECT MAX(SSQ_2.FEAT2) FROM SSQ_2);
