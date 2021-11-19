@@ -479,7 +479,11 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     case FLOATS: {
       float left = *(float *)left_value;
       float right = *(float *)right_value;
-      cmp_result = (int)(left - right);
+      if (left - right  > 0) {
+        cmp_result = 1;
+      } else if (left - right < 0) {
+        cmp_result = -1;
+      }
     } break;
     default: {
     }
