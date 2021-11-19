@@ -36,7 +36,9 @@ typedef enum {
   LESS_THAN,    //"<"     3
   GREAT_EQUAL,  //">="    4
   GREAT_THAN,   //">"     5
-  NO_OP
+  NOT_ING,      //"not in" 6
+  ING,          //"in" 7
+  NO_OP,
 } CompOp;
 
 //属性值类型
@@ -48,16 +50,26 @@ typedef struct _Value {
   void *data;     // value
 } Value;
 
+struct Selects;
+
 typedef struct _Condition {
   int left_is_attr;    // TRUE if left-hand side is an attribute
                        // 1时，操作符左边是属性名，0时，是属性值
-  Value left_value;    // left-hand side value if left_is_attr = FALSE
+  int left_is_subselect;
   RelAttr left_attr;   // left-hand side attribute
+  Value left_value;    // left-hand side value if left_is_attr = FALSE
+  struct Selects *left_select;     // left-hand side selector
+
+
   CompOp comp;         // comparison operator
+
+
   int right_is_attr;   // TRUE if right-hand side is an attribute
                        // 1时，操作符右边是属性名，0时，是属性值
+  int right_is_subselect;
   RelAttr right_attr;  // right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value right_value;   // right-hand side value if right_is_attr = FALSE
+  struct Selects *right_select;     // left-hand side selector
 } Condition;
 
 enum AGG_T {
@@ -106,7 +118,7 @@ typedef struct {
 
 
 // struct of select
-typedef struct {
+typedef struct Selects {
   size_t    attr_num;               // Length of all attrs
   SelectAttr attributes[MAX_NUM];   // attrs
 
@@ -247,8 +259,11 @@ void value_init_float(Value *value, float v);
 void value_init_string(Value *value, const char *v);
 void value_destroy(Value *value);
 
-void condition_init(Condition *condition, CompOp comp, int left_is_attr, RelAttr *left_attr, Value *left_value,
-    int right_is_attr, RelAttr *right_attr, Value *right_value);
+void condition_init(Condition *condition, CompOp comp,
+                    int left_is_attr, RelAttr *left_attr, Value *left_value,
+                    int left_is_subselect, Selects *left_select,
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,
+                    int right_is_subselect, Selects *right_select);
 void condition_destroy(Condition *condition);
 
 void attr_info_init(AttrInfo *attr_info, const char *name, AttrType type, size_t length);

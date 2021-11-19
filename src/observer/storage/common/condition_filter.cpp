@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "record_manager.h"
 #include "common/log/log.h"
 #include "storage/common/table.h"
+#include "sql/executor/execute_stage.h"
 
 using namespace common;
 
@@ -27,11 +28,15 @@ ConditionFilter::~ConditionFilter()
 DefaultConditionFilter::DefaultConditionFilter()
 {
   left_.is_attr = false;
+  left_.is_sub_select = false;
+  left_.tuple_set = nullptr;
   left_.attr_length = 0;
   left_.attr_offset = 0;
   left_.value = nullptr;
 
   right_.is_attr = false;
+  right_.is_sub_select = false;
+  right_.tuple_set = nullptr;
   right_.attr_length = 0;
   right_.attr_offset = 0;
   right_.value = nullptr;
@@ -57,12 +62,14 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrT
   comp_op_ = comp_op;
   return RC::SUCCESS;
 }
-
-RC DefaultConditionFilter::init(Table &table, const Condition &condition)
+RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent *session_event)
 {
   const TableMeta &table_meta = table.table_meta();
   ConDesc left;
   ConDesc right;
+
+  memset(&left, 0, sizeof(ConDesc));
+  memset(&right, 0, sizeof(ConDesc));
 
   AttrType type_left = UNDEFINED;
   AttrType type_right = UNDEFINED;
@@ -80,6 +87,8 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     left.value = nullptr;
 
     type_left = field_left->type();
+  } else if (1 == condition.left_is_subselect) {
+    /* empty */
   } else {
     left.is_attr = false;
     left.value = condition.left_value.data;  // 校验type 或者转换类型
@@ -173,6 +182,26 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
     type_right = field_right->type();
 
     right.value = nullptr;
+  } else if (1 == condition.right_is_subselect) {
+      std::vector<TupleSet> result_tupleset;
+      int size;
+      stage->do_select(db, *condition.right_select, session_event, result_tupleset, &size);
+      right.is_attr = false;
+      right.is_sub_select = true;
+      // right
+      if (!result_tupleset.size()) {
+        right.tuple_set = NULL;
+      } else {
+        right.tuple_set = new TupleSet(std::move(result_tupleset.front()));
+      }
+
+      if (right.tuple_set->schema().size() != 1) {
+        return INVALID_ARGUMENT;
+      }
+
+      right.tuple_set->debug();
+
+      type_right = right.tuple_set->schema().field(0).type();
   } else {
     right.is_attr = false;
     right.value = condition.right_value.data;
@@ -255,6 +284,7 @@ RC DefaultConditionFilter::init(Table &table, const Condition &condition)
   //  }
   // NOTE：这里没有实现不同类型的数据比较，比如整数跟浮点数之间的对比
   // 但是选手们还是要实现。这个功能在预选赛中会出现
+
   if (type_left != type_right) {
       if ((type_left == DATES && type_right == CHARS) || (type_left == CHARS && type_right == DATES)) {
           // LOG_INFO("%s\n%s", (char *)left.value, (char *)right.value);
@@ -314,23 +344,68 @@ bool DefaultConditionFilter::filter_two_tuple(const Tuple & tuple1,const Tuple &
     return false;
 }
 
+bool is_in_tuple(char *left_value, const TupleSet &right_tupleset, AttrType attr_type_) {
+  int cmp_result = -1;
+  for (int i = 0; i < right_tupleset.size(); ++i) {
+    auto right_value = (char *)(right_tupleset.tuples()[i].get(0).val());
+
+    switch (attr_type_) {
+      case DATES:
+      case CHARS: {  // 字符串都是定长的，直接比较
+        // 按照C字符串风格来定
+        cmp_result = strcmp(left_value, right_value);
+      } break;
+      case INTS: {
+        // 没有考虑大小端问题
+        // 对int和float，要考虑字节对齐问题,有些平台下直接转换可能会跪
+        int left = *(int *)left_value;
+        int right = *(int *)right_value;
+        cmp_result = left - right;
+      } break;
+      case FLOATS: {
+        float left = *(float *)left_value;
+        float right = *(float *)right_value;
+        cmp_result = (int)(left - right);
+      } break;
+      default: {
+      }
+    }
+    if (cmp_result == 0) {
+      break;
+    }
+  }
+  return cmp_result == 0;
+}
+
 
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
   char *left_value = nullptr;
   char *right_value = nullptr;
+  const TupleSet *right_tupleset = nullptr;
 
   if (left_.is_attr) {  // value
     left_value = (char *)(rec.data + left_.attr_offset);
   } else {
     left_value = (char *)left_.value;
   }
-
   if (right_.is_attr) {
     right_value = (char *)(rec.data + right_.attr_offset);
+  } else if (right_.is_sub_select) {
+    right_tupleset = right_.tuple_set;
+    if (!right_tupleset || right_tupleset->tuples().size() == 0) {
+      switch (comp_op_) {
+      case ING: return false;
+      case NOT_ING: return true;
+      default: {LOG_DEBUG("empty subquery"); return false;}; /* LOG_DEBUG */
+      }
+    }
+
+    right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
   } else {
     right_value = (char *)right_.value;
   }
+
 
   int cmp_result = 0;
   switch (attr_type_) {
@@ -368,6 +443,16 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       return cmp_result >= 0;
     case GREAT_THAN:
       return cmp_result > 0;
+    case ING: {
+      if (right_tupleset) {
+        return is_in_tuple(left_value, *right_tupleset, attr_type_);
+      }
+    }
+    case NOT_ING: {
+      if (right_tupleset) {
+        return !is_in_tuple(left_value, *right_tupleset, attr_type_);
+      }
+    }
 
     default:
       break;
@@ -410,7 +495,7 @@ RC CompositeConditionFilter::init(Table &table, const Condition *conditions, int
   ConditionFilter **condition_filters = new ConditionFilter *[condition_num];
   for (int i = 0; i < condition_num; i++) {
     DefaultConditionFilter *default_condition_filter = new DefaultConditionFilter();
-    rc = default_condition_filter->init(table, conditions[i]);
+    rc = default_condition_filter->init(NULL, NULL, table, conditions[i], NULL);
     if (rc != RC::SUCCESS) {
       delete default_condition_filter;
       for (int j = i - 1; j >= 0; j--) {

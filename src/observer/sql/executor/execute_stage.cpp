@@ -35,7 +35,8 @@ See the Mulan PSL v2 for more details. */
 
 using namespace common;
 
-RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node);
+RC create_selection_executor(ExecuteStage* stage, Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node, SessionEvent *session_event);
+
 
 //! Constructor
 ExecuteStage::ExecuteStage(const char *tag) : Stage(tag) {}
@@ -123,7 +124,7 @@ void ExecuteStage::handle_request(common::StageEvent *event) {
 
   switch (sql->flag) {
     case SCF_SELECT: { // select
-      RC rc = do_select(current_db, sql, exe_event->sql_event()->session_event());
+      RC rc = select(current_db, sql->sstr.selection, exe_event->sql_event()->session_event());
       if (rc != SUCCESS) {
           session_event->set_response("FAILURE\n");
       }
@@ -216,7 +217,7 @@ void end_trx_if_need(Session *session, Trx *trx, bool all_right) {
   }
 }
 
-RC ExecuteStage::create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes) {
+RC ExecuteStage::create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes, SessionEvent *session_event) {
   Trx *trx = session->current_trx();
   RC rc = RC::SUCCESS;
 
@@ -226,7 +227,7 @@ RC ExecuteStage::create_schema(Session *session, const Selects &selects, const c
     LOG_DEBUG("selects.relations[%d] -> {%s}", i, selects.relations[i]);
 
     SelectExeNode *select_node = new SelectExeNode;
-    rc = create_selection_executor(trx, selects, db, table_name, *select_node);
+    rc = create_selection_executor(this, trx, selects, db, table_name, *select_node, session_event);
 
     std::stringstream output;
     select_node->return_schema().print(output); 
@@ -535,19 +536,19 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
 
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
-RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_event) {
+RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *session_event, std::vector<TupleSet> &result_tupleset, int *size) {
 
   Session *session = session_event->get_client()->session;
-  const Selects &selects = sql->sstr.selection;
+  // const Selects &selects = sql->sstr.selection;
   std::vector<TupleSet> tuple_sets;
-  std::vector<TupleSet> result_tupleset;
+  // std::vector<TupleSet> result_tupleset;
   std::vector<SelectExeNode *> select_nodes;
 
   RC rc = RC::SUCCESS;
   Trx *trx = session->current_trx();
 
   // step1:用所有跟这张表关联的condition生成filter，然后生成schema，最后生成最底层的select执行节点
-  rc = create_schema(session, selects, db, select_nodes);
+  rc = create_schema(session, selects, db, select_nodes, session_event);
   if (rc != RC::SUCCESS) {
     end_trx_if_need(session, trx, false);
     return rc;
@@ -624,19 +625,33 @@ RC ExecuteStage::do_select(const char *db, Query *sql, SessionEvent *session_eve
   // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
 
-  // step6: 把数据根据不同的情况生成response，其实里面可以改，为了兼容性没有改
-  // 目前还没写group by，我们认为 result_tupleset 只有一项
+  for (SelectExeNode *& tmp_node: select_nodes) {
+    delete tmp_node;
+  }
+  return rc;
+}
+
+RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_event) {
+  Session *session = session_event->get_client()->session;
+  Trx *trx = session->current_trx();
+  RC rc = SUCCESS;
+  std::vector<TupleSet> result_tupleset;
+  int tuple_sets_size = 0;
+
+  rc = do_select(db, selects, session_event, result_tupleset, &tuple_sets_size);
+  if (rc != RC::SUCCESS) {
+    end_trx_if_need(session, trx, false);
+    return rc;
+  }
+
   std::stringstream ss;
-  if(tuple_sets.size() > 1) {
+  if(tuple_sets_size > 1) {
     result_tupleset.front().print(ss, true);
   } else {
     // 当前只查询一张表，直接返回结果即可
     result_tupleset.front().print(ss, false);
   }
 
-  for (SelectExeNode *& tmp_node: select_nodes) {
-    delete tmp_node;
-  }
   session_event->set_response(ss.str());
   end_trx_if_need(session, trx, true);
   return rc;
@@ -677,7 +692,7 @@ static RC schema_add_field_projection(Table *table, const char *field_name, Tupl
 }
 
 // 把所有的表和只跟这张表关联的condition都拿出来，生成最底层的select 执行节点
-RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node) {
+RC create_selection_executor(ExecuteStage* stage, Trx *trx, const Selects &selects, const char *db, const char *table_name, SelectExeNode &select_node, SessionEvent *session_event) {
   // 列出跟这张表关联的Attr
   TupleSchema schema;
   Table * table = DefaultHandler::get_default().find_table(db, table_name);
@@ -781,14 +796,14 @@ RC create_selection_executor(Trx *trx, const Selects &selects, const char *db, c
   std::vector<DefaultConditionFilter *> condition_filters;
   for (size_t i = 0; i < selects.condition_num; i++) {
     const Condition &condition = selects.conditions[i];
-    if ((condition.left_is_attr == 0 && condition.right_is_attr == 0) || // 两边都是值
+    if (((!condition.right_is_subselect) && ((condition.left_is_attr == 0 && condition.right_is_attr == 0) || // 两边都是值
         (condition.left_is_attr == 1 && condition.right_is_attr == 0 && match_table(selects, condition.left_attr.relation_name, table_name)) ||  // 左边是属性右边是值
         (condition.left_is_attr == 0 && condition.right_is_attr == 1 && match_table(selects, condition.right_attr.relation_name, table_name)) ||  // 左边是值，右边是属性名
         (condition.left_is_attr == 1 && condition.right_is_attr == 1 &&
             match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
-        ) {
+        )) || (condition.right_is_subselect && condition.left_is_attr == 1)) {
       DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
-      RC rc = condition_filter->init(*table, condition);
+      RC rc = condition_filter->init(db, stage, *table, condition, session_event);
       if (rc != RC::SUCCESS) {
         delete condition_filter;
         for (DefaultConditionFilter * &filter : condition_filters) {

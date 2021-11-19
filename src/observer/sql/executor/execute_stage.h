@@ -30,6 +30,11 @@ public:
   ~ExecuteStage();
   static Stage *make_stage(const std::string &tag);
 
+  // RC do_select(const char *db, Selects &select, SessionEvent *session_event);
+  RC do_select(const char *db, Selects &selects, SessionEvent *session_event,
+               std::vector<TupleSet> &result_tupleset, int *size);
+  RC select(const char *db, Selects &selects, SessionEvent *session_event);
+
 protected:
   // common function
   ExecuteStage(const char *tag);
@@ -42,12 +47,11 @@ protected:
                      common::CallbackContext *context) override;
 
   void handle_request(common::StageEvent *event);
-  RC do_select(const char *db, Query *sql, SessionEvent *session_event);
 
 protected:
 private:
   // do_select中的一些辅助函数，为了让整个逻辑更加清楚一点
-  RC create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes);
+  RC create_schema(Session *session, const Selects &selects, const char *db, std::vector<SelectExeNode *>& select_nodes, SessionEvent *session_event);
   RC create_tuples(Session *session, std::vector<SelectExeNode *> select_nodes, std::vector<TupleSet>& result_tupleset);
   RC cross_join(std::vector<TupleSet>& tuple_sets, const Selects &selects, std::vector<TupleSet>& result_tupleset);
   RC execute_aggregation(TupleSet& result_tupleset, const Selects &selects, Session *session, const char *db, bool is_multi);

@@ -60,25 +60,38 @@ void value_destroy(Value *value) {
   value->data = nullptr;
 }
 
+void testn(int n) {
+  LOG_INFO("test1 %d", n);
+}
+
 void condition_init(Condition *condition, CompOp comp, 
                     int left_is_attr, RelAttr *left_attr, Value *left_value,
-                    int right_is_attr, RelAttr *right_attr, Value *right_value) {
+                    int left_is_subselect, Selects *left_select,
+                    int right_is_attr, RelAttr *right_attr, Value *right_value,
+                    int right_is_subselect, Selects *right_select) {
   memset(condition, 0, sizeof(Condition));
   condition->comp = comp;
   condition->left_is_attr = left_is_attr;
+  condition->left_is_subselect = left_is_subselect;
   if (left_is_attr) {
     condition->left_attr = *left_attr;
+  } else if (left_is_subselect) {
+    condition->left_select = left_select;
   } else {
     condition->left_value = *left_value;
   }
 
+  condition->right_is_subselect = right_is_subselect;
   condition->right_is_attr = right_is_attr;
   if (right_is_attr) {
     condition->right_attr = *right_attr;
+  } else if (right_is_subselect) {
+    condition->right_select = right_select;
   } else {
     condition->right_value = *right_value;
   }
 }
+
 void condition_destroy(Condition *condition) {
   if (condition->left_is_attr) {
     relation_attr_destroy(&condition->left_attr);
