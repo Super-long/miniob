@@ -781,8 +781,15 @@ condition:
 			condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, selection, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
-
-
+    | before_select select after_select comOp before_select select after_select {
+			RelAttr right_attr;
+      Selects *right_selection = $3;
+      Selects *left_selection = $7;
+			Condition condition;
+      memset(&condition, 0, sizeof(Condition));
+			condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, right_selection, 0, NULL, NULL, 1, left_selection);
+			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
     ;
 before_select:
     LBRACE {

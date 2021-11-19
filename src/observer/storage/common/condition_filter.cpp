@@ -416,37 +416,17 @@ bool DefaultConditionFilter::filter(const Record &rec) const
   const TupleSet *right_tupleset = nullptr;
   const TupleSet *left_tupleset = nullptr;
 
-  if (left_.is_attr) {  // value
-    left_value = (char *)(rec.data + left_.attr_offset);
-  } else if (left_.is_sub_select) {
+  if (left_.is_sub_select && right_.is_sub_select) {
     left_tupleset = left_.tuple_set;
-    if (!left_tupleset || left_tupleset->tuples().size() == 0) {
-      switch (comp_op_) {
-      case ING: return false;
-      case NOT_ING: return true;
-      default: {LOG_DEBUG("empty subquery"); return false;}; /* LOG_DEBUG */
-      }
-    }
-
+    right_tupleset = right_.tuple_set;
+    right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
     left_value = (char *)(left_tupleset->tuples()[0].get(0).val());
-    if (left_.type == FLOATS && right_.is_attr && right_.type == INTS && attr_type_ == FLOATS) {
-      // 如果是整数和浮点数的比较，需要转换成浮点数
-      right_value = (char *)(rec.data + right_.attr_offset);
-      int right_i = *(int *)right_value;
-
-      float *right_float = (float *)malloc(sizeof(float));
-      *right_float = right_i;
-      right_value = (char*)right_float;
-    }
   } else {
-    left_value = (char *)left_.value;
-  }
-  if (!right_value) {
-    if (right_.is_attr) {
-      right_value = (char *)(rec.data + right_.attr_offset);
-    } else if (right_.is_sub_select) {
-      right_tupleset = right_.tuple_set;
-      if (!right_tupleset || right_tupleset->tuples().size() == 0) {
+    if (left_.is_attr) {  // value
+      left_value = (char *)(rec.data + left_.attr_offset);
+    } else if (left_.is_sub_select) {
+      left_tupleset = left_.tuple_set;
+      if (!left_tupleset || left_tupleset->tuples().size() == 0) {
         switch (comp_op_) {
         case ING: return false;
         case NOT_ING: return true;
@@ -454,16 +434,43 @@ bool DefaultConditionFilter::filter(const Record &rec) const
         }
       }
 
-      right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
-      if (right_.type == FLOATS && left_.type == INTS && attr_type_ == FLOATS) {
+      left_value = (char *)(left_tupleset->tuples()[0].get(0).val());
+      if (left_.type == FLOATS && right_.is_attr && right_.type == INTS && attr_type_ == FLOATS) {
         // 如果是整数和浮点数的比较，需要转换成浮点数
-        int left_i = *(int *)left_value;
-        float *left_float = (float *)malloc(sizeof(float));
-        *left_float = left_i;
-        left_value = (char*)left_float;
+        right_value = (char *)(rec.data + right_.attr_offset);
+        int right_i = *(int *)right_value;
+
+        float *right_float = (float *)malloc(sizeof(float));
+        *right_float = right_i;
+        right_value = (char*)right_float;
       }
     } else {
-      right_value = (char *)right_.value;
+      left_value = (char *)left_.value;
+    }
+    if (!right_value) {
+      if (right_.is_attr) {
+        right_value = (char *)(rec.data + right_.attr_offset);
+      } else if (right_.is_sub_select) {
+        right_tupleset = right_.tuple_set;
+        if (!right_tupleset || right_tupleset->tuples().size() == 0) {
+          switch (comp_op_) {
+          case ING: return false;
+          case NOT_ING: return true;
+          default: {LOG_DEBUG("empty subquery"); return false;}; /* LOG_DEBUG */
+          }
+        }
+
+        right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
+        if (right_.type == FLOATS && left_.is_attr && left_.type == INTS && attr_type_ == FLOATS) {
+          // 如果是整数和浮点数的比较，需要转换成浮点数
+          int left_i = *(int *)left_value;
+          float *left_float = (float *)malloc(sizeof(float));
+          *left_float = left_i;
+          left_value = (char*)left_float;
+        }
+      } else {
+        right_value = (char *)right_.value;
+      }
     }
   }
 
