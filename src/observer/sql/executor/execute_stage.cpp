@@ -624,7 +624,7 @@ RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *sessi
 
   // step6: 列过滤，需要把where和orderby中需要的的条件过滤掉;（性能低）
   result_tupleset.front().erase_projection();
-
+  *size = tuple_sets.size();
   for (SelectExeNode *& tmp_node: select_nodes) {
     delete tmp_node;
   }
