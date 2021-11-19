@@ -101,6 +101,8 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
       if (left.tuple_set->schema().size() != 1) {
         return INVALID_ARGUMENT;
       }
+      if ((condition.comp != ING && condition.comp != NOT_ING) && left.tuple_set->size() > 1)
+        return INVALID_ARGUMENT;
 
       left.tuple_set->debug();
 
@@ -216,6 +218,9 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
       if (right.tuple_set->schema().size() != 1) {
         return INVALID_ARGUMENT;
       }
+
+      if ((condition.comp != ING && condition.comp != NOT_ING) && right.tuple_set->size() > 1)
+        return INVALID_ARGUMENT;
 
       right.tuple_set->debug();
 
