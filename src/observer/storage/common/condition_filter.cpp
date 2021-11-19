@@ -68,9 +68,6 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
   ConDesc left;
   ConDesc right;
 
-  memset(&left, 0, sizeof(ConDesc));
-  memset(&right, 0, sizeof(ConDesc));
-
   AttrType type_left = UNDEFINED;
   AttrType type_right = UNDEFINED;
 
@@ -87,12 +84,33 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
     left.value = nullptr;
 
     type_left = field_left->type();
+    left.type = type_left;
   } else if (1 == condition.left_is_subselect) {
-    /* empty */
+      std::vector<TupleSet> result_tupleset;
+      int size;
+      stage->do_select(db, *condition.left_select, session_event, result_tupleset, &size);
+      left.is_attr = false;
+      left.is_sub_select = true;
+      // left
+      if (!result_tupleset.size()) {
+        left.tuple_set = NULL;
+      } else {
+        left.tuple_set = new TupleSet(std::move(result_tupleset.front()));
+      }
+
+      if (left.tuple_set->schema().size() != 1) {
+        return INVALID_ARGUMENT;
+      }
+
+      left.tuple_set->debug();
+
+      type_left = left.tuple_set->schema().field(0).type();
+      left.type = type_left;
   } else {
     left.is_attr = false;
     left.value = condition.left_value.data;  // 校验type 或者转换类型
     type_left = condition.left_value.type;
+    left.type = type_left;
 
     AttrType tright;
     if (!condition.right_is_attr) {
@@ -180,7 +198,7 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
     right.attr_length = field_right->len();
     right.attr_offset = field_right->offset();
     type_right = field_right->type();
-
+    right.type = type_right;
     right.value = nullptr;
   } else if (1 == condition.right_is_subselect) {
       std::vector<TupleSet> result_tupleset;
@@ -202,10 +220,12 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
       right.tuple_set->debug();
 
       type_right = right.tuple_set->schema().field(0).type();
+      right.type = type_right;
   } else {
     right.is_attr = false;
     right.value = condition.right_value.data;
     type_right = condition.right_value.type;
+    right.type = type_right;
 
       if (type_left == DATES) {
           char *data = static_cast<char *>(right.value);
@@ -286,6 +306,13 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
   // 但是选手们还是要实现。这个功能在预选赛中会出现
 
   if (type_left != type_right) {
+      if (condition.right_is_subselect || condition.left_is_subselect) {
+        if ((type_left == INTS && type_right == FLOATS) ||
+            (type_left == FLOATS && type_right == INTS)) {
+          return init(left, right, FLOATS, condition.comp);
+        }
+      }
+
       if ((type_left == DATES && type_right == CHARS) || (type_left == CHARS && type_right == DATES)) {
           // LOG_INFO("%s\n%s", (char *)left.value, (char *)right.value);
           return init(left, right, DATES, condition.comp);
@@ -377,23 +404,18 @@ bool is_in_tuple(char *left_value, const TupleSet &right_tupleset, AttrType attr
   return cmp_result == 0;
 }
 
-
 bool DefaultConditionFilter::filter(const Record &rec) const
 {
   char *left_value = nullptr;
   char *right_value = nullptr;
   const TupleSet *right_tupleset = nullptr;
+  const TupleSet *left_tupleset = nullptr;
 
   if (left_.is_attr) {  // value
     left_value = (char *)(rec.data + left_.attr_offset);
-  } else {
-    left_value = (char *)left_.value;
-  }
-  if (right_.is_attr) {
-    right_value = (char *)(rec.data + right_.attr_offset);
-  } else if (right_.is_sub_select) {
-    right_tupleset = right_.tuple_set;
-    if (!right_tupleset || right_tupleset->tuples().size() == 0) {
+  } else if (left_.is_sub_select) {
+    left_tupleset = left_.tuple_set;
+    if (!left_tupleset || left_tupleset->tuples().size() == 0) {
       switch (comp_op_) {
       case ING: return false;
       case NOT_ING: return true;
@@ -401,11 +423,44 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       }
     }
 
-    right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
-  } else {
-    right_value = (char *)right_.value;
-  }
+    left_value = (char *)(left_tupleset->tuples()[0].get(0).val());
+    if (left_.type == FLOATS && right_.is_attr && right_.type == INTS && attr_type_ == FLOATS) {
+      // 如果是整数和浮点数的比较，需要转换成浮点数
+      right_value = (char *)(rec.data + right_.attr_offset);
+      int right_i = *(int *)right_value;
 
+      float *right_float = (float *)malloc(sizeof(float));
+      *right_float = right_i;
+      right_value = (char*)right_float;
+    }
+  } else {
+    left_value = (char *)left_.value;
+  }
+  if (!right_value) {
+    if (right_.is_attr) {
+      right_value = (char *)(rec.data + right_.attr_offset);
+    } else if (right_.is_sub_select) {
+      right_tupleset = right_.tuple_set;
+      if (!right_tupleset || right_tupleset->tuples().size() == 0) {
+        switch (comp_op_) {
+        case ING: return false;
+        case NOT_ING: return true;
+        default: {LOG_DEBUG("empty subquery"); return false;}; /* LOG_DEBUG */
+        }
+      }
+
+      right_value = (char *)(right_tupleset->tuples()[0].get(0).val());
+      if (right_.type == FLOATS && left_.type == INTS && attr_type_ == FLOATS) {
+        // 如果是整数和浮点数的比较，需要转换成浮点数
+        int left_i = *(int *)left_value;
+        float *left_float = (float *)malloc(sizeof(float));
+        *left_float = left_i;
+        left_value = (char*)left_float;
+      }
+    } else {
+      right_value = (char *)right_.value;
+    }
+  }
 
   int cmp_result = 0;
   switch (attr_type_) {
@@ -446,11 +501,15 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     case ING: {
       if (right_tupleset) {
         return is_in_tuple(left_value, *right_tupleset, attr_type_);
+      } else if (left_tupleset) {
+        LOG_PANIC("we should not use grammer like select xxx from xxx where (xxx) IN xx ?!");
       }
     }
     case NOT_ING: {
       if (right_tupleset) {
         return !is_in_tuple(left_value, *right_tupleset, attr_type_);
+      } else if (left_tupleset) {
+        LOG_PANIC("we should not use grammer like select xxx from xxx where (xxx) NOT IN xx ?!");
       }
     }
 

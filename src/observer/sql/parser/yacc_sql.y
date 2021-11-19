@@ -754,6 +754,15 @@ condition:
 			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 0, NULL, NULL, 1, selection);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
+    | before_select select after_select comOp ID {
+			RelAttr right_attr;
+			relation_attr_init(&right_attr, NULL, $5);
+      Selects *selection = $3;
+			Condition condition;
+      memset(&condition, 0, sizeof(Condition));
+			condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, selection, 1, &right_attr, NULL, 0, NULL);
+			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
 
     ;
 before_select:
