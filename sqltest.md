@@ -221,3 +221,9 @@ select * from test1 where in1 <(SELECT max(test1.in1),in1 from test1);
 select * from test1 where in1 <(SELECT max(test1.ch1), max(test2.ch2) from test2,test1);
 
 select * from test1 where in1 in(SELECT test2.in2 from test2) and test1.in1 < 4 and test1.ch1 > 'a';
+
+select * from test1 where in1 = (SELECT avg(test2.in2) from test2);
+
+insert into test1 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
+insert into test2 values(1,"a",1.1, "2000-10-01"),(2,"b",2.2, "2000-10-02"),(3,"c",3.3, "2000-10-03"),(4,"d",4.4, "2000-10-04"),(5,"e",5.5, "2000-10-05");
+select * from test1 where (SELECT avg(test2.in2) from test2) = in1;
