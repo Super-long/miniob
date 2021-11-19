@@ -763,12 +763,30 @@ condition:
 			condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, selection, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
     }
+    |ID DOT ID comOp before_select select after_select {
+			RelAttr left_attr;
+			relation_attr_init(&left_attr, $1, $3);
+      Selects *selection = $7;
+			Condition condition;
+      memset(&condition, 0, sizeof(Condition));
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 0, NULL, NULL, 1, selection);
+			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
+    | before_select select after_select comOp ID DOT ID {
+			RelAttr right_attr;
+			relation_attr_init(&right_attr, $5, $7);
+      Selects *selection = $3;
+			Condition condition;
+      memset(&condition, 0, sizeof(Condition));
+			condition_init(&condition, CONTEXT->comp, 0, NULL, NULL, 1, selection, 1, &right_attr, NULL, 0, NULL);
+			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
+
 
     ;
 before_select:
     LBRACE {
       ParserContext *next_ctx_value = (ParserContext *)malloc(sizeof(ParserContext));
-      // *next_ctx = malloc(sizeof(ParserContext));
       next_ctx_value->ssql = CONTEXT->ssql;
       next_ctx_value->select_length = CONTEXT->select_length;
       next_ctx_value->condition_length = CONTEXT->condition_length;
@@ -776,10 +794,11 @@ before_select:
       next_ctx_value->value_length = CONTEXT->value_length;
       next_ctx_value->aggregations_length = CONTEXT->aggregations_length;
       next_ctx_value->comp = CONTEXT->comp;
-      next_ctx_value->next_ctx = NULL;
+      next_ctx_value->next_ctx = CONTEXT->next_ctx;
       memcpy(next_ctx_value->values, CONTEXT->values, MAX_NUM * sizeof(Value));
       memcpy(next_ctx_value->conditions, CONTEXT->conditions, MAX_NUM * sizeof(Condition));
       memcpy(next_ctx_value->id, CONTEXT->id, MAX_NUM * sizeof(char));
+      /* 旧节点空 */
       memset(CONTEXT, 0, sizeof(ParserContext));
       ParserContext **next_ctx = &CONTEXT->next_ctx;
       *next_ctx = next_ctx_value;
@@ -798,11 +817,11 @@ after_select:
       CONTEXT->value_length = next_ctx_value->value_length;
       CONTEXT->aggregations_length = next_ctx_value->aggregations_length;
       CONTEXT->comp = next_ctx_value->comp;
+      CONTEXT->next_ctx = next_ctx_value->next_ctx;
+
       memcpy(CONTEXT->values, next_ctx_value->values, MAX_NUM * sizeof(Value));
       memcpy(CONTEXT->conditions, next_ctx_value->conditions, MAX_NUM * sizeof(Condition));
       memcpy(CONTEXT->id, next_ctx_value->id, MAX_NUM * sizeof(char));
-      free(*next_ctx);
-      *next_ctx = NULL;
       $$ = selection;
     }
     ;
