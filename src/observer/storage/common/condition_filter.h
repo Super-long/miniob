@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 #define __OBSERVER_STORAGE_COMMON_CONDITION_FILTER_H_
 
 #include <sql/executor/tuple.h>
+#include "event/session_event.h"
 #include "rc.h"
 #include "sql/parser/parse.h"
 
@@ -27,6 +28,9 @@ struct ConDesc {
   int    attr_length; // 如果是属性，表示属性值长度
   int    attr_offset; // 如果是属性，表示在记录中的偏移量
   void * value;       // 如果是值类型，这里记录值的数据
+
+  bool   is_sub_select;
+  TupleSet *tuple_set;
 };
 
 class ConditionFilter {
@@ -41,13 +45,15 @@ public:
   virtual bool filter(const Record &rec) const = 0;
 };
 
+class ExecuteStage;
+
 class DefaultConditionFilter : public ConditionFilter {
 public:
   DefaultConditionFilter();
   virtual ~DefaultConditionFilter();
 
   RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
-  RC init(Table &table, const Condition &condition);
+  RC init(const char *db, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent*session_event);
 
   virtual bool filter(const Record &rec) const;
   virtual bool filter_tuple(const Tuple & tuple) const;

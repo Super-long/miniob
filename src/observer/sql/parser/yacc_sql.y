@@ -21,6 +21,8 @@ typedef struct ParserContext {
   Condition conditions[MAX_NUM];
   CompOp comp;
 	char id[MAX_NUM];
+  struct ParserContext *next_ctx;
+  // int ctx_id; /* 此次执行第几个 select */
 } ParserContext;
 
 //获取子串
@@ -117,6 +119,8 @@ ParserContext *get_context(yyscan_t scanner)
         ASC
         INNER
         JOIN
+        IN
+        NOT
 
 %union {
   struct _Attr *attr;
@@ -126,6 +130,7 @@ ParserContext *get_context(yyscan_t scanner)
   int number;
   float floats;
 	char *position;
+  struct Selects *select1;
 }
 
 %token <number> NUMBER
@@ -141,6 +146,8 @@ ParserContext *get_context(yyscan_t scanner)
 %type <condition1> condition;
 %type <value1> value;
 %type <number> number;
+%type <select1> after_select;
+
 
 %%
 
@@ -150,7 +157,7 @@ commands:		//commands or sqls. parser starts here.
     ;
 
 command:
-	  select  
+	  do_select  
 	| insert
 	| update
 	| delete
@@ -357,8 +364,11 @@ update:			/*  update 语句的语法解析树*/
 			CONTEXT->condition_length = 0;
 		}
     ;
+do_select:
+    select SEMICOLON {}
+    ;
 select:				/*  select 语句的语法解析树*/
-    SELECT select_attr_list FROM FromCluse where group_by order_by SEMICOLON
+    SELECT select_attr_list FROM FromCluse where group_by order_by
 		{
 			// CONTEXT->ssql->sstr.selection.relations[CONTEXT->from_length++]=$4;
 
@@ -599,7 +609,7 @@ condition:
 			Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 0, NULL, right_value, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$ = ( Condition *)malloc(sizeof( Condition));
 			// $$->left_is_attr = 1;
@@ -618,7 +628,7 @@ condition:
 			Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, 0, NULL, right_value, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$ = ( Condition *)malloc(sizeof( Condition));
 			// $$->left_is_attr = 0;
@@ -640,7 +650,7 @@ condition:
 			relation_attr_init(&right_attr, NULL, $3);
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
 			// $$->left_is_attr = 1;
@@ -659,7 +669,7 @@ condition:
 			relation_attr_init(&right_attr, NULL, $3);
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
 			// $$=( Condition *)malloc(sizeof( Condition));
@@ -681,7 +691,7 @@ condition:
 			Value *right_value = &CONTEXT->values[CONTEXT->value_length - 1];
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, right_value);
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 0, NULL, right_value, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 
 			// $$=( Condition *)malloc(sizeof( Condition));
@@ -703,7 +713,7 @@ condition:
 			relation_attr_init(&right_attr, $3, $5);
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp, 0, NULL, left_value, 0, NULL, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
 			// $$->left_is_attr = 0;//属性值
@@ -724,7 +734,7 @@ condition:
 			relation_attr_init(&right_attr, $5, $7);
 
 			Condition condition;
-			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 1, &right_attr, NULL);
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 1, &right_attr, NULL, 0, NULL);
 			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
 			// $$=( Condition *)malloc(sizeof( Condition));
 			// $$->left_is_attr = 1;		//属性
@@ -735,8 +745,58 @@ condition:
 			// $$->right_attr.relation_name=$5;
 			// $$->right_attr.attribute_name=$7;
     }
-    ;
+    |ID comOp before_select select after_select {
+			RelAttr left_attr;
+			relation_attr_init(&left_attr, NULL, $1);
+      Selects *selection = $5;
+			Condition condition;
+      memset(&condition, 0, sizeof(Condition));
+			condition_init(&condition, CONTEXT->comp, 1, &left_attr, NULL, 0, NULL, 0, NULL, NULL, 1, selection);
+			CONTEXT->conditions[CONTEXT->condition_length++] = condition;
+    }
 
+    ;
+before_select:
+    LBRACE {
+      ParserContext *next_ctx_value = (ParserContext *)malloc(sizeof(ParserContext));
+      // *next_ctx = malloc(sizeof(ParserContext));
+      next_ctx_value->ssql = CONTEXT->ssql;
+      next_ctx_value->select_length = CONTEXT->select_length;
+      next_ctx_value->condition_length = CONTEXT->condition_length;
+      next_ctx_value->from_length = CONTEXT->from_length;
+      next_ctx_value->value_length = CONTEXT->value_length;
+      next_ctx_value->aggregations_length = CONTEXT->aggregations_length;
+      next_ctx_value->comp = CONTEXT->comp;
+      next_ctx_value->next_ctx = NULL;
+      memcpy(next_ctx_value->values, CONTEXT->values, MAX_NUM * sizeof(Value));
+      memcpy(next_ctx_value->conditions, CONTEXT->conditions, MAX_NUM * sizeof(Condition));
+      memcpy(next_ctx_value->id, CONTEXT->id, MAX_NUM * sizeof(char));
+      memset(CONTEXT, 0, sizeof(ParserContext));
+      ParserContext **next_ctx = &CONTEXT->next_ctx;
+      *next_ctx = next_ctx_value;
+      CONTEXT->ssql = calloc(1, sizeof(Query));
+    }
+    ;
+after_select:
+    RBRACE {
+      Selects *selection = &CONTEXT->ssql->sstr.selection;
+      ParserContext **next_ctx = &CONTEXT->next_ctx;
+      ParserContext *next_ctx_value = *next_ctx;
+      CONTEXT->ssql = next_ctx_value->ssql;
+      CONTEXT->select_length = next_ctx_value->select_length;
+      CONTEXT->condition_length = next_ctx_value->condition_length;
+      CONTEXT->from_length = next_ctx_value->from_length;
+      CONTEXT->value_length = next_ctx_value->value_length;
+      CONTEXT->aggregations_length = next_ctx_value->aggregations_length;
+      CONTEXT->comp = next_ctx_value->comp;
+      memcpy(CONTEXT->values, next_ctx_value->values, MAX_NUM * sizeof(Value));
+      memcpy(CONTEXT->conditions, next_ctx_value->conditions, MAX_NUM * sizeof(Condition));
+      memcpy(CONTEXT->id, next_ctx_value->id, MAX_NUM * sizeof(char));
+      free(*next_ctx);
+      *next_ctx = NULL;
+      $$ = selection;
+    }
+    ;
 comOp:
   	  EQ { CONTEXT->comp = EQUAL_TO; }
     | LT { CONTEXT->comp = LESS_THAN; }
@@ -744,6 +804,8 @@ comOp:
     | LE { CONTEXT->comp = LESS_EQUAL; }
     | GE { CONTEXT->comp = GREAT_EQUAL; }
     | NE { CONTEXT->comp = NOT_EQUAL; }
+    | NOT IN { CONTEXT->comp = NOT_ING; }
+    | IN { CONTEXT->comp = ING; }
     ;
 
 load_data:
