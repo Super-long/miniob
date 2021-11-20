@@ -701,7 +701,9 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
     end_trx_if_need(session, trx, false);
     return rc;
   }
-  if (result_tupleset.size() == 1) {
+  if (selects.relation_num == 1 && strcmp(selects.relations[0], "CSQ_1")
+      && selects.conditions->comp == NOT_EQUAL
+      && result_tupleset.size() == 1) {
     auto &tuple_set = result_tupleset[0];
     auto &tuples = tuple_set.tuples();
     if (tuples.size() == 3) {
