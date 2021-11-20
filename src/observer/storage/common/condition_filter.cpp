@@ -421,9 +421,18 @@ bool is_in_tuple(char *left_value, const TupleSet &right_tupleset, AttrType attr
         cmp_result = left - right;
       } break;
       case FLOATS: {
-      float left = *(float *)left_value;
-      float right = *(float *)right_value;
-      cmp_result = (int)(left - right);
+        float left = *(float *)left_value;
+        float right = *(float *)right_value;
+        float di = left - right;
+        if (di < 0.01 && di > -0.01) {
+          cmp_result = 0;
+        } else {
+          if (di > 0) {
+            cmp_result = 1;
+          } else if (di < 0) {
+            cmp_result = -1;
+          }
+        }
       } break;
       default: {
       }
@@ -517,7 +526,16 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     case FLOATS: {
       float left = *(float *)left_value;
       float right = *(float *)right_value;
-      cmp_result = (int)(left - right);
+      float di = left - right;
+      if (di < 0.01 && di > -0.01) {
+        cmp_result = 0;
+      } else {
+        if (di > 0) {
+          cmp_result = 1;
+        } else if (di < 0) {
+          cmp_result = -1;
+        }
+      }
     } break;
     default: {
     }
