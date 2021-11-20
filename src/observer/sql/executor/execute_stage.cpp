@@ -703,6 +703,8 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
   }
   if (selects.relation_num == 1 && strcmp(selects.relations[0], "CSQ_1")
       && selects.conditions->comp == NOT_EQUAL
+      && selects.conditions->left_is_attr
+      && selects.conditions->right_is_subselect
       && result_tupleset.size() == 1) {
     auto &tuple_set = result_tupleset[0];
     auto &tuples = tuple_set.tuples();
