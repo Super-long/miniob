@@ -61,6 +61,9 @@ private:
 private:
   Stage *default_storage_stage_ = nullptr;
   Stage *mem_storage_stage_ = nullptr;
+  int selects_id_ = 0;
 };
+
+std::set<std::string> FindUnhaveRelations(const Selects &selects);
 
 #endif //__OBSERVER_SQL_EXECUTE_STAGE_H__
