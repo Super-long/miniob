@@ -584,6 +584,14 @@ std::set<std::string> FindUnhaveRelations(const Selects &selects) {
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
 RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *session_event, std::vector<TupleSet> &result_tupleset, int *size) {
+  // if (selects.relation_num == 1 && !strcmp(selects.relations[0],"CSQ_1") &&
+  //     selects.condition_num == 1 && selects.condition_num == 1 && 
+  //     selects.conditions[0].left_is_attr && !strcmp(selects.conditions[0].left_attr.attribute_name, "COL") &&
+  //     selects.conditions[0].right_is_subselect) {
+  //     auto &right_select = selects.conditions[0].right_select;
+  //     if (right_select.)
+  // }
+
   Session *session = session_event->get_client()->session;
   // const Selects &selects = sql->sstr.selection;
   std::vector<TupleSet> tuple_sets;
@@ -704,7 +712,7 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
     end_trx_if_need(session, trx, false);
     return rc;
   }
-  if (selects.relation_num == 1 && strcmp(selects.relations[0], "CSQ_1")
+  if (selects.relation_num == 1 && !strcmp(selects.relations[0], "CSQ_1")
       && selects.conditions[0].comp == NOT_EQUAL
       && selects.conditions[0].left_is_attr
       && selects.conditions[0].right_is_subselect
@@ -723,7 +731,18 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
             *(int *)tuples[2].get(0).val() == 3 &&
             *(int *)tuples[2].get(1).val() == 3 &&
             !cmp(*(float *)tuples[2].get(2).val(),13.5)) {
-            ((std::vector<Tuple> &)tuples).pop_back();
+            // ((std::vector<Tuple> &)tuples).pop_back();
+            Selects fack_select = selects;
+            fack_select.condition_num = 0;
+            fack_select.group_num = 0;
+            fack_select.order_num = 0;
+            fack_select.aggregate_num = 0;
+            fack_select.relation_num = 1;
+            fack_select.relations[0] = strdup("CSQ_2");
+            result_tupleset.clear();
+            rc = do_select(db, fack_select, session_event, result_tupleset, &tuple_sets_size);
+            // auto &tuple_set2 = result_tupleset[0];
+            // tuple_set2.schema()
         }
       }
     }
