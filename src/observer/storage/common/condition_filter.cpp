@@ -62,7 +62,7 @@ RC DefaultConditionFilter::init(const ConDesc &left, const ConDesc &right, AttrT
   comp_op_ = comp_op;
   return RC::SUCCESS;
 }
-RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent *session_event)
+RC DefaultConditionFilter::init(const char *db, const Selects *selects, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent *session_event)
 {
   const TableMeta &table_meta = table.table_meta();
   ConDesc left;
@@ -88,6 +88,16 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
   } else if (1 == condition.left_is_subselect) {
       std::vector<TupleSet> result_tupleset;
       int size;
+      std::set<std::string> need_tables_set = FindUnhaveRelations(*condition.left_select);
+      if (need_tables_set.size() > 0) {
+        for (int i = 0; i < selects->relation_num; i++) {
+          auto iter = need_tables_set.find(selects->relations[i]);
+          if (iter != need_tables_set.end()) {
+            condition.left_select->relations[condition.left_select->relation_num++] = strdup(selects->relations[i]);
+            need_tables_set.erase(iter);
+          }
+        }
+      }
       stage->do_select(db, *condition.left_select, session_event, result_tupleset, &size);
       left.is_attr = false;
       left.is_sub_select = true;
@@ -97,6 +107,8 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
       } else {
         left.tuple_set = new TupleSet(std::move(result_tupleset.front()));
       }
+      if (!left.tuple_set)
+        return INVALID_ARGUMENT;
 
       if (left.tuple_set->schema().size() != 1) {
         return INVALID_ARGUMENT;
@@ -205,6 +217,16 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
   } else if (1 == condition.right_is_subselect) {
       std::vector<TupleSet> result_tupleset;
       int size;
+      std::set<std::string> need_tables_set = FindUnhaveRelations(*condition.right_select);
+      if (need_tables_set.size() > 0) {
+        for (int i = 0; i < selects->relation_num; i++) {
+          auto iter = need_tables_set.find(selects->relations[i]);
+          if (iter != need_tables_set.end()) {
+            condition.right_select->relations[condition.right_select->relation_num++] = strdup(selects->relations[i]);
+            need_tables_set.erase(iter);
+          }
+        }
+      }
       stage->do_select(db, *condition.right_select, session_event, result_tupleset, &size);
       right.is_attr = false;
       right.is_sub_select = true;
@@ -213,6 +235,10 @@ RC DefaultConditionFilter::init(const char *db, ExecuteStage* stage, Table &tabl
         right.tuple_set = NULL;
       } else {
         right.tuple_set = new TupleSet(std::move(result_tupleset.front()));
+      }
+
+      if (!right.tuple_set) {
+        return INVALID_ARGUMENT;
       }
 
       if (right.tuple_set->schema().size() != 1) {
@@ -570,7 +596,7 @@ RC CompositeConditionFilter::init(Table &table, const Condition *conditions, int
   ConditionFilter **condition_filters = new ConditionFilter *[condition_num];
   for (int i = 0; i < condition_num; i++) {
     DefaultConditionFilter *default_condition_filter = new DefaultConditionFilter();
-    rc = default_condition_filter->init(NULL, NULL, table, conditions[i], NULL);
+    rc = default_condition_filter->init(NULL, NULL, NULL, table, conditions[i], NULL);
     if (rc != RC::SUCCESS) {
       delete default_condition_filter;
       for (int j = i - 1; j >= 0; j--) {

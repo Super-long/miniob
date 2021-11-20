@@ -58,7 +58,7 @@ public:
   virtual ~DefaultConditionFilter();
 
   RC init(const ConDesc &left, const ConDesc &right, AttrType attr_type, CompOp comp_op);
-  RC init(const char *db, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent*session_event);
+  RC init(const char *db, const Selects *selects, ExecuteStage* stage, Table &table, const Condition &condition, SessionEvent*session_event);
 
   virtual bool filter(const Record &rec) const;
   virtual bool filter_tuple(const Tuple & tuple) const;

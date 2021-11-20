@@ -534,6 +534,53 @@ RC ExecuteStage::execute_aggregation(TupleSet& result_tupleset, const Selects &s
     return RC::SUCCESS;
 }
 
+std::set<std::string> FindUnhaveRelations(const Selects &selects) {
+  std::set<std::string> tables_set;
+
+  for (int j = 0 ; j < selects.attr_num; ++j) {
+      if (selects.attributes[j].type == SELECT_ATTR_AGG) {
+        auto rel = selects.attributes[j].attr.aggregation.agg_attr.relation_name;
+        if (rel)
+          tables_set.insert(rel);
+      } else if (selects.attributes[j].type == SELECT_ATTR_ATTR) {
+        auto rel = selects.attributes[j].attr.attr.relation_name;
+        if (rel)
+          tables_set.insert(rel);
+      }
+  }
+
+    for (int j = 0 ; j < selects.condition_num; ++j) {
+      if (selects.conditions[j].left_is_attr) {
+          auto rel = selects.conditions[j].left_attr.relation_name;
+          if (rel)
+            tables_set.insert(rel);
+      }
+      if (selects.conditions[j].right_is_attr) {
+          auto rel = selects.conditions[j].right_attr.relation_name;
+          if (rel)
+            tables_set.insert(rel);
+      }
+    }
+
+    for (int j = 0 ; j < selects.order_num; ++j) {
+      auto rel = selects.orders[j].order_attr.relation_name;
+      if (rel)
+        tables_set.insert(rel);
+    }
+    for (int j = 0 ; j < selects.order_num; ++j) {
+      auto rel = selects.groups[j].group_attr.relation_name;
+      if (rel)
+        tables_set.insert(rel);
+    }
+    for (int j = 0 ; j < selects.relation_num; ++j) {
+        auto iter = tables_set.find(selects.relations[j]);
+        if (iter != tables_set.end()) {
+            tables_set.erase(iter);
+        }
+    }
+    return tables_set;
+}
+
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
 RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *session_event, std::vector<TupleSet> &result_tupleset, int *size) {
@@ -803,7 +850,7 @@ RC create_selection_executor(ExecuteStage* stage, Trx *trx, const Selects &selec
             match_table(selects, condition.left_attr.relation_name, table_name) && match_table(selects, condition.right_attr.relation_name, table_name)) // 左右都是属性名，并且表名都符合
         )) || (condition.right_is_subselect) || (condition.left_is_subselect)) {
       DefaultConditionFilter *condition_filter = new DefaultConditionFilter();
-      RC rc = condition_filter->init(db, stage, *table, condition, session_event);
+      RC rc = condition_filter->init(db, &selects, stage, *table, condition, session_event);
       if (rc != RC::SUCCESS) {
         delete condition_filter;
         for (DefaultConditionFilter * &filter : condition_filters) {

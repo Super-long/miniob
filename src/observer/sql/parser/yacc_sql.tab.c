@@ -678,8 +678,8 @@ static const yytype_int16 yyrline[] =
      460,   463,   468,   475,   477,   480,   481,   484,   490,   496,
      501,   509,   516,   523,   530,   540,   549,   556,   564,   574,
      582,   591,   593,   597,   599,   604,   625,   645,   665,   687,
-     708,   729,   748,   757,   766,   775,   784,   795,   816,   836,
-     837,   838,   839,   840,   841,   842,   843,   847
+     708,   729,   748,   757,   766,   775,   784,   795,   818,   838,
+     839,   840,   841,   842,   843,   844,   845,   849
 };
 #endif
 
@@ -2366,12 +2366,14 @@ yyreduce:
       ParserContext **next_ctx = &CONTEXT->next_ctx;
       *next_ctx = next_ctx_value;
       CONTEXT->ssql = calloc(1, sizeof(Query));
+      // memcpy(CONTEXT->ssql->sstr.selection.relations, next_ctx_value->ssql->sstr.selection.relations, MAX_NUM * sizeof(char *));
+      // CONTEXT->ssql->sstr.selection.relation_num = next_ctx_value->ssql->sstr.selection.relation_num;
     }
-#line 2371 "yacc_sql.tab.c"
+#line 2373 "yacc_sql.tab.c"
     break;
 
   case 118: /* after_select: RBRACE  */
-#line 816 "yacc_sql.y"
+#line 818 "yacc_sql.y"
            {
       Selects *selection = &CONTEXT->ssql->sstr.selection;
       ParserContext **next_ctx = &CONTEXT->next_ctx;
@@ -2390,68 +2392,68 @@ yyreduce:
       memcpy(CONTEXT->id, next_ctx_value->id, MAX_NUM * sizeof(char));
       (yyval.select1) = selection;
     }
-#line 2394 "yacc_sql.tab.c"
+#line 2396 "yacc_sql.tab.c"
     break;
 
   case 119: /* comOp: EQ  */
-#line 836 "yacc_sql.y"
+#line 838 "yacc_sql.y"
              { CONTEXT->comp = EQUAL_TO; }
-#line 2400 "yacc_sql.tab.c"
+#line 2402 "yacc_sql.tab.c"
     break;
 
   case 120: /* comOp: LT  */
-#line 837 "yacc_sql.y"
+#line 839 "yacc_sql.y"
          { CONTEXT->comp = LESS_THAN; }
-#line 2406 "yacc_sql.tab.c"
+#line 2408 "yacc_sql.tab.c"
     break;
 
   case 121: /* comOp: GT  */
-#line 838 "yacc_sql.y"
+#line 840 "yacc_sql.y"
          { CONTEXT->comp = GREAT_THAN; }
-#line 2412 "yacc_sql.tab.c"
+#line 2414 "yacc_sql.tab.c"
     break;
 
   case 122: /* comOp: LE  */
-#line 839 "yacc_sql.y"
+#line 841 "yacc_sql.y"
          { CONTEXT->comp = LESS_EQUAL; }
-#line 2418 "yacc_sql.tab.c"
+#line 2420 "yacc_sql.tab.c"
     break;
 
   case 123: /* comOp: GE  */
-#line 840 "yacc_sql.y"
+#line 842 "yacc_sql.y"
          { CONTEXT->comp = GREAT_EQUAL; }
-#line 2424 "yacc_sql.tab.c"
+#line 2426 "yacc_sql.tab.c"
     break;
 
   case 124: /* comOp: NE  */
-#line 841 "yacc_sql.y"
+#line 843 "yacc_sql.y"
          { CONTEXT->comp = NOT_EQUAL; }
-#line 2430 "yacc_sql.tab.c"
+#line 2432 "yacc_sql.tab.c"
     break;
 
   case 125: /* comOp: NOT IN  */
-#line 842 "yacc_sql.y"
+#line 844 "yacc_sql.y"
              { CONTEXT->comp = NOT_ING; }
-#line 2436 "yacc_sql.tab.c"
+#line 2438 "yacc_sql.tab.c"
     break;
 
   case 126: /* comOp: IN  */
-#line 843 "yacc_sql.y"
+#line 845 "yacc_sql.y"
          { CONTEXT->comp = ING; }
-#line 2442 "yacc_sql.tab.c"
+#line 2444 "yacc_sql.tab.c"
     break;
 
   case 127: /* load_data: LOAD DATA INFILE SSS INTO TABLE ID SEMICOLON  */
-#line 848 "yacc_sql.y"
+#line 850 "yacc_sql.y"
                 {
 		  CONTEXT->ssql->flag = SCF_LOAD_DATA;
 			load_data_init(&CONTEXT->ssql->sstr.load_data, (yyvsp[-1].string), (yyvsp[-4].string));
 		}
-#line 2451 "yacc_sql.tab.c"
+#line 2453 "yacc_sql.tab.c"
     break;
 
 
-#line 2455 "yacc_sql.tab.c"
+#line 2457 "yacc_sql.tab.c"
 
       default: break;
     }
@@ -2644,7 +2646,7 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 853 "yacc_sql.y"
+#line 855 "yacc_sql.y"
 
 //_____________________________________________________________________
 extern void scan_string(const char *str, yyscan_t scanner);

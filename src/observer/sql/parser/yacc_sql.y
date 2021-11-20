@@ -810,6 +810,8 @@ before_select:
       ParserContext **next_ctx = &CONTEXT->next_ctx;
       *next_ctx = next_ctx_value;
       CONTEXT->ssql = calloc(1, sizeof(Query));
+      // memcpy(CONTEXT->ssql->sstr.selection.relations, next_ctx_value->ssql->sstr.selection.relations, MAX_NUM * sizeof(char *));
+      // CONTEXT->ssql->sstr.selection.relation_num = next_ctx_value->ssql->sstr.selection.relation_num;
     }
     ;
 after_select:
