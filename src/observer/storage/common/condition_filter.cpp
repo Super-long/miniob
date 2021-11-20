@@ -424,7 +424,7 @@ bool is_in_tuple(char *left_value, const TupleSet &right_tupleset, AttrType attr
         float left = *(float *)left_value;
         float right = *(float *)right_value;
         float di = left - right;
-        if (di < 0.0001 && di > -0.0001) {
+        if (di < 0.01 && di > -0.01) {
           cmp_result = 0;
         } else {
           if (di > 0) {
@@ -527,7 +527,7 @@ bool DefaultConditionFilter::filter(const Record &rec) const
       float left = *(float *)left_value;
       float right = *(float *)right_value;
       float di = left - right;
-      if (di < 0.0001 && di > -0.0001) {
+      if (di < 0.01 && di > -0.01) {
         cmp_result = 0;
       } else {
         if (di > 0) {
