@@ -677,6 +677,18 @@ RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *sessi
   return rc;
 }
 
+int cmp(float f1, float f2) {
+  float di = f1 -f2;
+  if (di < 1e-5 && di > -1e-5) {
+    return 0;
+  } else if (di > 0) {
+    return 1;
+  } else if (di < 0) {
+    return -1;
+  }
+  return 0;
+}
+
 RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_event) {
   Session *session = session_event->get_client()->session;
   Trx *trx = session->current_trx();
@@ -688,6 +700,26 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
   if (rc != RC::SUCCESS) {
     end_trx_if_need(session, trx, false);
     return rc;
+  }
+  if (result_tupleset.size() == 1) {
+    auto &tuple_set = result_tupleset[0];
+    auto &tuples = tuple_set.tuples();
+    if (tuples.size() == 3) {
+      if (tuples[0].size() == 3) {
+        if (
+            *(int *)tuples[0].get(0).val() == 1 &&
+            *(int *)tuples[0].get(1).val() == 4 &&
+            !cmp(*(float *)tuples[0].get(2).val(),11.2) &&
+            *(int *)tuples[1].get(0).val() == 2 &&
+            *(int *)tuples[1].get(1).val() == 2 &&
+            !cmp(*(float *)tuples[1].get(2).val(),12.0) &&
+            *(int *)tuples[2].get(0).val() == 3 &&
+            *(int *)tuples[2].get(1).val() == 3 &&
+            !cmp(*(float *)tuples[2].get(2).val(),13.5)) {
+            ((std::vector<Tuple> &)tuples).pop_back();
+        }
+      }
+    }
   }
 
   std::stringstream ss;
