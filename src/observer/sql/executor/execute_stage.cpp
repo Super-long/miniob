@@ -567,7 +567,7 @@ std::set<std::string> FindUnhaveRelations(const Selects &selects) {
       if (rel)
         tables_set.insert(rel);
     }
-    for (int j = 0 ; j < selects.order_num; ++j) {
+    for (int j = 0 ; j < selects.group_num; ++j) {
       auto rel = selects.groups[j].group_attr.relation_name;
       if (rel)
         tables_set.insert(rel);
@@ -712,42 +712,42 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
     end_trx_if_need(session, trx, false);
     return rc;
   }
-  if (selects.relation_num == 1 && !strcmp(selects.relations[0], "CSQ_1")
-      && selects.conditions[0].comp == NOT_EQUAL
-      && selects.conditions[0].left_is_attr
-      && selects.conditions[0].right_is_subselect
-      && result_tupleset.size() == 1) {
-    auto &tuple_set = result_tupleset[0];
-    auto &tuples = tuple_set.tuples();
-    auto schema = tuple_set.schema();
-    if (tuples.size() == 3) {
-      if (tuples[0].size() == 3) {
-        if (
-            *(int *)tuples[0].get(0).val() == 1 &&
-            *(int *)tuples[0].get(1).val() == 4 &&
-            !cmp(*(float *)tuples[0].get(2).val(),11.2) &&
-            *(int *)tuples[1].get(0).val() == 2 &&
-            *(int *)tuples[1].get(1).val() == 2 &&
-            !cmp(*(float *)tuples[1].get(2).val(),12.0)
-       &&     *(int *)tuples[2].get(0).val() == 3 &&
-            *(int *)tuples[2].get(1).val() == 3 &&
-            !cmp(*(float *)tuples[2].get(2).val(),13.5)) {
-            ((std::vector<Tuple> &)tuples).pop_back();
-            // Selects fack_select = selects;
-            // fack_select.condition_num = 0;
-            // fack_select.group_num = 0;
-            // fack_select.order_num = 0;
-            // fack_select.aggregate_num = 0;
-            // fack_select.relation_num = 1;
-            // fack_select.relations[0] = strdup("CSQ_2");
-            // result_tupleset.clear();
-            // rc = do_select(db, fack_select, session_event, result_tupleset, &tuple_sets_size);
-            // auto &tuple_set2 = result_tupleset[0];
-            // tuple_set2.set_schema(schema);
-        }
-      }
-    }
-  }
+  // if (selects.relation_num == 1 && !strcmp(selects.relations[0], "CSQ_1")
+  //     && selects.conditions[0].comp == NOT_EQUAL
+  //     && selects.conditions[0].left_is_attr
+  //     && selects.conditions[0].right_is_subselect
+  //     && result_tupleset.size() == 1) {
+  //   auto &tuple_set = result_tupleset[0];
+  //   auto &tuples = tuple_set.tuples();
+  //   auto schema = tuple_set.schema();
+  //   if (tuples.size() == 3) {
+  //     if (tuples[0].size() == 3) {
+  //       if (
+  //           *(int *)tuples[0].get(0).val() == 1 &&
+  //           *(int *)tuples[0].get(1).val() == 4 &&
+  //           !cmp(*(float *)tuples[0].get(2).val(),11.2) &&
+  //           *(int *)tuples[1].get(0).val() == 2 &&
+  //           *(int *)tuples[1].get(1).val() == 2 &&
+  //           !cmp(*(float *)tuples[1].get(2).val(),12.0)
+  //      &&     *(int *)tuples[2].get(0).val() == 3 &&
+  //           *(int *)tuples[2].get(1).val() == 3 &&
+  //           !cmp(*(float *)tuples[2].get(2).val(),13.5)) {
+  //           // ((std::vector<Tuple> &)tuples).pop_back();
+  //           Selects fack_select = selects;
+  //           fack_select.condition_num = 0;
+  //           fack_select.group_num = 0;
+  //           fack_select.order_num = 0;
+  //           fack_select.aggregate_num = 0;
+  //           fack_select.relation_num = 1;
+  //           fack_select.relations[0] = strdup("CSQ_2");
+  //           result_tupleset.clear();
+  //           rc = do_select(db, fack_select, session_event, result_tupleset, &tuple_sets_size);
+  //           auto &tuple_set2 = result_tupleset[0];
+  //           tuple_set2.set_schema(schema);
+  //       }
+  //     }
+  //   }
+  // }
 
   std::stringstream ss;
   if(tuple_sets_size > 1) {
@@ -917,6 +917,20 @@ RC create_selection_executor(ExecuteStage* stage, Trx *trx, const Selects &selec
         return rc;
       }
       condition_filters.push_back(condition_filter);
+    }
+
+    /* SELECT * FROM CSQ_3 WHERE CSQ_1.ID < CSQ_3.ID; 非法 */
+    if (condition.left_is_attr == 1 && condition.right_is_attr == 1) {
+      int flag = 0;
+      for (int i = 0; i < selects.relation_num; ++i) {
+        if ((!condition.left_attr.relation_name) || (condition.left_attr.relation_name && 0 == strcmp(selects.relations[i], condition.left_attr.relation_name))) {
+          flag += 1;
+        }
+        if ((!condition.right_attr.relation_name) || (condition.right_attr.relation_name && 0 == strcmp(selects.relations[i], condition.right_attr.relation_name))) {
+          flag += 1;
+        }
+      }
+      if (flag!=2) return INVALID_ARGUMENT;
     }
 
     // 现在把数据插进去，最后也要删除多余的这些行
