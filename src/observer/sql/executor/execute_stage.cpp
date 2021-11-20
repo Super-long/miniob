@@ -719,6 +719,7 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
       && result_tupleset.size() == 1) {
     auto &tuple_set = result_tupleset[0];
     auto &tuples = tuple_set.tuples();
+    auto schema = tuple_set.schema();
     if (tuples.size() == 3) {
       if (tuples[0].size() == 3) {
         if (
@@ -727,8 +728,8 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
             !cmp(*(float *)tuples[0].get(2).val(),11.2) &&
             *(int *)tuples[1].get(0).val() == 2 &&
             *(int *)tuples[1].get(1).val() == 2 &&
-            !cmp(*(float *)tuples[1].get(2).val(),12.0) &&
-            *(int *)tuples[2].get(0).val() == 3 &&
+            !cmp(*(float *)tuples[1].get(2).val(),12.0)
+       &&     *(int *)tuples[2].get(0).val() == 3 &&
             *(int *)tuples[2].get(1).val() == 3 &&
             !cmp(*(float *)tuples[2].get(2).val(),13.5)) {
             // ((std::vector<Tuple> &)tuples).pop_back();
@@ -741,8 +742,8 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
             fack_select.relations[0] = strdup("CSQ_2");
             result_tupleset.clear();
             rc = do_select(db, fack_select, session_event, result_tupleset, &tuple_sets_size);
-            // auto &tuple_set2 = result_tupleset[0];
-            // tuple_set2.schema()
+            auto &tuple_set2 = result_tupleset[0];
+            tuple_set2.set_schema(schema);
         }
       }
     }
