@@ -251,6 +251,11 @@ select * from test1 where (select avg(test2.in2) from test2) <> (select avg(test
 
 select * from test1 where (select avg(test2.in2) from test2) = (select avg(test3.in3) from test3);
 
+select * from test1 where fl1 <> (select avg(test2.in2) from test2 where test2.fl2 > test1.fl1);
+
+select * from test1 where fl1 <> (select max(test2.fl2) from test2 where test2.fl2 > test1.fl1);
+
+
 create table CSQ_1(ID int, COL1 int, FEAT1 float);
 create table CSQ_2(ID int, COL2 int, FEAT2 float);
 create table CSQ_3(ID int, COL3 int, FEAT3 float);
@@ -259,7 +264,7 @@ insert into CSQ_1 values(1, 4, 11.2);
 insert into CSQ_1 values(2, 2, 12.0);
 insert into CSQ_1 values(3, 3, 13.5);
 
-insert into CSQ_2 values(1, 4, 9.0);
+insert into CSQ_2 values(1, 4, 12.75);
 insert into CSQ_2 values(2, 2, 12.75);
 insert into CSQ_2 values(3, 3, 14.5);
 
@@ -272,9 +277,5 @@ insert into CSQ_3 values(3, 3, 10.0);
 SELECT AVG(CSQ_2.FEAT2) FROM CSQ_2,CSQ_1 WHERE CSQ_2.FEAT2 > CSQ_1.FEAT1;
 
 SELECT * FROM CSQ_1 WHERE FEAT1 <> (SELECT AVG(CSQ_2.FEAT2) FROM CSQ_2 WHERE CSQ_2.FEAT2 > CSQ_1.FEAT1);
-
-select * from test1 where fl1 <> (select avg(test2.in2) from test2 where test2.fl2 > test1.fl1);
-
-select * from test1 where fl1 <> (select max(test2.fl2) from test2 where test2.fl2 > test1.fl1);
-
 SELECT * FROM CSQ_1 WHERE COL1 > (SELECT AVG(CSQ_2.COL2) FROM CSQ_2 WHERE CSQ_2.FEAT2 >= (SELECT MIN(CSQ_3.FEAT3) FROM CSQ_3));
+
