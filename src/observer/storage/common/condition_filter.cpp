@@ -90,10 +90,11 @@ RC DefaultConditionFilter::init(const char *db, const Selects *selects, ExecuteS
       int size;
       std::set<std::string> need_tables_set = FindUnhaveRelations(*condition.left_select);
       if (need_tables_set.size() > 0) {
-        for (int i = 0; i < selects->relation_num; i++) {
-          auto iter = need_tables_set.find(selects->relations[i]);
+        auto &table_names = stage->getTables();
+        for (auto &table_name: table_names) {
+          auto iter = need_tables_set.find(table_name);
           if (iter != need_tables_set.end()) {
-            condition.left_select->relations[condition.left_select->relation_num++] = strdup(selects->relations[i]);
+            condition.left_select->relations[condition.left_select->relation_num++] = strdup(table_name.c_str());
             need_tables_set.erase(iter);
           }
         }
