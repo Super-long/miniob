@@ -168,11 +168,6 @@ void Server::recv(int fd, short ev, void *arg) {
   }
 
   LOG_INFO("receive command(size=%d): %s", data_len, client->buf);
-  if (memcmp(client->buf, "SELECT * FROM CSQ_1 WHERE FEAT1 <> (SELECT AVG(CSQ_2.FEAT2) FROM CSQ_2 WHERE CSQ_2.FEAT2 > CSQ_1.FEAT1);\n" , data_len) == 0) {
-    const char *str = "ID | COL1 | FEAT1\n1 | 4 | 11.2\n2 | 2 | 12\n";
-    ::write(client->fd, str, strlen(str)+1);
-    return;
-  }
   SessionEvent *sev = new SessionEvent(client);
   session_stage_->add_event(sev);
 }
