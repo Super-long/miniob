@@ -259,7 +259,7 @@ insert into CSQ_1 values(1, 4, 11.2);
 insert into CSQ_1 values(2, 2, 12.0);
 insert into CSQ_1 values(3, 3, 13.5);
 
-insert into CSQ_2 values(1, 4, 12.75);
+insert into CSQ_2 values(1, 4, 9.0);
 insert into CSQ_2 values(2, 2, 12.75);
 insert into CSQ_2 values(3, 3, 14.5);
 
