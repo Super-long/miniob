@@ -593,6 +593,9 @@ RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *sessi
   RC rc = RC::SUCCESS;
   Trx *trx = session->current_trx();
 
+  for (int i= 0 ; i < selects.relation_num; ++i)
+    tables_.insert(selects.relations[i]);
+
   // step1:用所有跟这张表关联的condition生成filter，然后生成schema，最后生成最底层的select执行节点
   rc = create_schema(session, selects, db, select_nodes, session_event);
   if (rc != RC::SUCCESS) {
@@ -702,9 +705,9 @@ RC ExecuteStage::select(const char *db, Selects &selects, SessionEvent *session_
     return rc;
   }
   if (selects.relation_num == 1 && strcmp(selects.relations[0], "CSQ_1")
-      && selects.conditions->comp == NOT_EQUAL
-      && selects.conditions->left_is_attr
-      && selects.conditions->right_is_subselect
+      && selects.conditions[0].comp == NOT_EQUAL
+      && selects.conditions[0].left_is_attr
+      && selects.conditions[0].right_is_subselect
       && result_tupleset.size() == 1) {
     auto &tuple_set = result_tupleset[0];
     auto &tuples = tuple_set.tuples();

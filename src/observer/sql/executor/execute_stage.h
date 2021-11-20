@@ -34,6 +34,8 @@ public:
   RC do_select(const char *db, Selects &selects, SessionEvent *session_event,
                std::vector<TupleSet> &result_tupleset, int *size);
   RC select(const char *db, Selects &selects, SessionEvent *session_event);
+  std::set<std::string>& getTables() {return tables_;}
+  const std::set<std::string>& getTables() const {return tables_;}
 
 protected:
   // common function
@@ -62,6 +64,8 @@ private:
   Stage *default_storage_stage_ = nullptr;
   Stage *mem_storage_stage_ = nullptr;
   int selects_id_ = 0;
+
+  std::set<std::string> tables_;
 };
 
 std::set<std::string> FindUnhaveRelations(const Selects &selects);
