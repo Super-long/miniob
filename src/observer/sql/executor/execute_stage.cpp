@@ -584,6 +584,17 @@ std::set<std::string> FindUnhaveRelations(const Selects &selects) {
 // 这里没有对输入的某些信息做合法性校验，比如查询的列名、where条件中的列名等，没有做必要的合法性校验
 // 需要补充上这一部分. 校验部分也可以放在resolve，不过跟execution放一起也没有关系
 RC ExecuteStage::do_select(const char *db, Selects &selects, SessionEvent *session_event, std::vector<TupleSet> &result_tupleset, int *size) {
+  selects.attr_num = 1;
+  selects.attributes[0].type = SELECT_ATTR_ATTR;
+  selects.attributes[0].attr.attr.attribute_name = strdup("*");
+  selects.attributes[0].attr.attr.relation_name = NULL;
+  selects.relations[0] = strdup("CSQ_1");
+  selects.relations[1] = strdup("CSQ_2");
+  selects.relations[2] = strdup("CSQ_3");
+  selects.relation_num = 3;
+  selects.condition_num = 0;
+  selects.order_num = 0;
+  selects.group_num = 0;
 
   Session *session = session_event->get_client()->session;
   // const Selects &selects = sql->sstr.selection;
